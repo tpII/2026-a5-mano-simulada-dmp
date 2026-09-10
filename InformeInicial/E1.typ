@@ -141,6 +141,7 @@ La propuesta surge a partir del artículo “MPU6050 Gyro Drift Fix: DMP, Kalman
 
 Se realizará una investigación y comparación de dos estrategias diferentes para obtener la orientación del sensor: la primera utilizará el Digital Motion Processor (DMP) interno del sensor y la segunda utilizará directamente los datos proporcionados por el acelerómetro y el giroscopio, aplicando procesamiento matemático y técnicas de filtrado de sensores.
 
+Si bien la propuesta original contempla el uso del MPU6050, se decidió utilizar el MPU9250 debido a que incorpora un magnetómetro de tres ejes. Según el artículo de referencia, la rotación en yaw no puede corregirse utilizando únicamente el acelerómetro, ya que este solo aporta una referencia asociada a la gravedad. La incorporación del magnetómetro permite disponer de una referencia adicional para estabilizar el yaw y reducir la deriva en este eje, manteniendo al mismo tiempo las mediciones de acelerómetro y giroscopio necesarias para la comparación planteada en el proyecto.
 
 = Objetivo
 

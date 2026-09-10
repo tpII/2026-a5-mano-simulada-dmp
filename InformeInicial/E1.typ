@@ -139,9 +139,11 @@
 
 La propuesta surge a partir del artículo “MPU6050 Gyro Drift Fix: DMP, Kalman Filter, and I2Cdevlib Setup“ de la empresa Industrial Monitors Direct, acerca del MPU6050, su DMP, el procesamiento de datos inerciales, los filtros de orientación y técnicas para reducir los efectos del gyro drift.
 
-Se realizará una investigación y comparación de dos estrategias diferentes para obtener la orientación del sensor: la primera utilizará el Digital Motion Processor (DMP) interno del sensor y la segunda utilizará directamente los datos proporcionados por el acelerómetro y el giroscopio, aplicando procesamiento matemático y técnicas de filtrado de sensores.
+Se realizará una invesigacion con la que se busca comparar la orientación obtenida mediante el Digital Motion Processor (DMP) con una segunda estimación calculada a partir de las mediciones de los sensores y diferentes métodos de filtrado.
 
-Si bien la propuesta original contempla el uso del MPU6050, se decidió utilizar el MPU9250 debido a que incorpora un magnetómetro de tres ejes. Según el artículo de referencia, la rotación en yaw no puede corregirse utilizando únicamente el acelerómetro, ya que este solo aporta una referencia asociada a la gravedad. La incorporación del magnetómetro permite disponer de una referencia adicional para estabilizar el yaw y reducir la deriva en este eje, manteniendo al mismo tiempo las mediciones de acelerómetro y giroscopio necesarias para la comparación planteada en el proyecto.
+En el artículo se señala que el eje de yaw no posee una referencia absoluta cuando la orientación se obtiene únicamente a partir del giroscopio y acelerometro, por lo que puede presentar un error acumulativo. Como posible solución, se plantea incorporar un magnetómetro.
+
+A partir de esta consideración, se decidió utilizar el MPU9250 en lugar del MPU6050, debido a que incorpora un magnetómetro de tres ejes.La incorporación de este tercer tipo de sensor permite disponer de una referencia adicional para la estimación de la orientación, particularmente sobre el eje de yaw.
 
 = Objetivo
 

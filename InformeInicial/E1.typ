@@ -254,6 +254,12 @@ El software del proyecto estará compuesto por diferentes procesos:
   [Comunicación entre el ESP32 y la aplicación mediante red.],
 )
 
+#figure(
+  image("images/diagrama_de_flujo.png", width: 80%),
+  caption: [Diagrama de flujo previsto para el desarrollo de software. A la izquierda el diagrama del microcontrolador. A la derecha el de la interfaz web.],
+  kind: image,
+) <diagrama-flujo>
+
 == Sistema web
 La aplicación de software deberá permitir recibir los datos transmitidos por el ESP32 y representar visualmente el movimiento y la orientación de la mano.
 

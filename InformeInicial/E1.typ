@@ -1,6 +1,7 @@
 // Bloques de código
 #import "@preview/codly:1.3.0": *
 #import "@preview/codly-languages:0.1.10": codly-languages
+#import "@preview/timeliney:0.4.0"
 // Diagramas de estados o bloques
 #import "@preview/fletcher:0.5.8"
 // Listas o cuestionarios
@@ -189,37 +190,39 @@ El hardware necesario para el desarrollo estará compuesto principalmente por lo
     align: (center, left, left, left),
     inset: 6pt,
     stroke: 0.5pt,
-
+    
     table.header([*Cantidad*], [*Descripción*], [*Link*], [*Precio unitario*]),
-
+    
     [1],
     [ESP32 NodeMCU WROOM-32, 38 pines, USB-C, Wi-Fi y Bluetooth],
     [#link(
       "https://www.mercadolibre.com.ar/esp32-nodemcu-wroom32-38-pines-usbc-wifi-bluetooth-arduino/up/MLAU5001930260?pdp_filters=item_id:MLA3878662278#is_advertising=true&searchVariation=MLAU5001930260&backend_model=search-backend&be_origin=backend&position=1&search_layout=grid&type=pad&tracking_id=9cd4be54-9d01-4f56-8f09-c12251c0e86e&ad_domain=VQCATCORE_LST&ad_position=1&ad_click_id=N2U1Mzg1NWUtNzM0My00NmNlLWJjZjItNTkyYTkxNzU4ZTkz",
     )[ESP32 WROOM-32]],
-    [\$16.100],
-
+    [\$20.700],
+    
     [1],
     [Módulo GY-9250 basado en MPU9250, con acelerómetro, giroscopio y magnetómetro de tres ejes. Incluye DMP.],
     [#link(
       "https://www.sistemsoft.com.ar/electronica/placa-de-desarrollo/modulo-gy9250-mpu9250-acelerometro-giroscopo-magnetometro",
     )[MPU9250]],
     [\$21.960 + \$14.500 de envío],
-
-    [1], [Guante para montaje del sistema], [A definir], [\$11.900],
-
-    [1], [Juego de cables Dupont x10], [A definir], [A definir],
-
-    [A confirmar], [Capacitores de desacople: 0,1 µF y 10 nF], [A definir], [A definir],
-
-    [1], [Cable USB-C para alimentación y programación del ESP32], [A definir], [A definir],
-
+    
+    [1], [Guante para montaje del sistema], [], [],
+    
+    [1], [Juego de cables Dupont x10], [], [],
+    
+    [2], [Capacitores de desacople: 0,1 µF], [], [],
+    
+    [1], [Capacitor de desacople: 10 nF], [], [],
+    
+    [1], [Cable USB-C para alimentación y programación del ESP32], [], [],
+    
     [1],
     [Computadora para programación, recepción de datos y ejecución de la interfaz],
     [Disponible],
-    [No requiere compra],
-
-    [1], [Power bank para alimentación portátil del prototipo (opcional)], [A definir], [A definir],
+    [],
+    
+    [1], [Power bank para alimentación portátil del prototipo (opcional)], [Disponible], [],
   ),
   caption: [Listado preliminar de materiales necesarios para el desarrollo del prototipo.],
   kind: table,
@@ -266,37 +269,104 @@ La interfaz contará con un panel de selección de filtros que permitirá al usu
 También contará con la visualización de la gráfica de error entre ambas estimaciones.
 
 La interfaz estará orientada principalmente a facilitar la evaluación experimental de las dos estrategias, permitiendo observar sus diferencias y analizar su comportamiento bajo distintas condiciones.
-
 = Avances cronológicos de tareas
-== Informe de avance de octubre
-Para el Informe de Avance de Octubre se planifica haber completado la etapa inicial de investigación y una primera implementación funcional del sistema de adquisición.
 
-Las tareas previstas son:
-#list(
-  [Investigar el funcionamiento del MPU9250, su alimentación, principales configuraciones y el Digital Motion Processor (DMP).],
-  [Analizar las diferentes formas de representar la orientación, principalmente los cuaterniones, y distintos filtros para los sensores.],
-  [Investigar las librerías y herramientas disponibles para la comunicación entre el ESP32 y el MPU9250.],
-  [Montar el hardware necesario.],
-  [Establecer la comunicación mediante I²C.],
-  [Realizar una primera configuración del DMP y obtener una estimación de orientación.],
-  [Implementar el filtro complementario para la primera estimación de la orientación a partir de los datos crudos.],
-  [Establecer la comunicación entre el ESP32 y la aplicación, que tendrá una interfaz simple, mostrando únicamente los datos recibidos en pantalla.],
-  [Calibrar el DMP.],
-)
+== Diagrama de Gantt
 
-Al finalizar esta etapa se espera contar con el hardware montado, las comunicaciones establecidas, una primera estimación de orientación mediante el DMP y alguna implementación del primer filtro.
+En la @fig-gantt se ilustra la distribución temporal de las tareas y los hitos del proyecto a lo largo de las semanas lectivas del semestre.
 
-== Informe de avance de noviembre
-Para la fecha correspondiente al Informe de Avance de Noviembre se planifica haber avanzado hacia la integración completa de las dos estrategias de estimación.
-
-#list(
-  [Terminar de calibrar el DMP.],
-  [Implementar y evaluar el filtro de Kalman, y pulir el filtro complementario.],
-  [Desarrollar la aplicación con la representación visual de las manos.],
-  [Implementar la comparación entre ambas reconstrucciones.],
-)
-
-Al finalizar esta etapa se espera disponer de un prototipo funcional capaz de adquirir los datos del MPU9250, procesarlos mediante las dos estrategias planteadas, transmitir los resultados por red y visualizarlos en la aplicación. De esta manera, en la etapa final se puede trabajar en el refinamiento de los filtros y el análisis de los resultados y las limitaciones del hardware.
-
-
+#figure(
+  {
+    set text(size: 7.5pt, font: "Liberation Sans")
+    
+    // Paleta de colores
+    let col-f1 = rgb("2b6cb0") // Azul (Fase 1)
+    let col-f2 = rgb("2c7a7b") // Teal (Fase 2)
+    let col-f3 = rgb("c05621") // Ámbar (Fase 3)
+    let col-hito = rgb("c92a2a") // Rojo para hitos
+    let linea-puntos = (stroke: 0.4pt + luma(215), dash: "dotted")
+    
+    // Barra de tarea limpia
+    let bar(fill-col) = block(
+      fill: fill-col.lighten(15%),
+      height: 8.5pt,
+      width: 100%,
+      radius: 2.5pt,
+    )
+    
+    // Celda de hito (diamante centrado)
+    let celda-hito() = table.cell(
+      fill: col-hito.lighten(92%),
+      align: center + horizon,
+      text(fill: col-hito.darken(10%), size: 7.5pt, [◆]),
+    )
+    
+    table(
+      columns: (5.2fr, ..(1fr,) * 12),
+      align: (left + horizon, ..(center + horizon,) * 12),
+      inset: (x: 2.5pt, y: 4pt),
+      stroke: (x, y) => {
+        if y == 0 { (bottom: 1pt + luma(120), rest: none) } else if y == 1 {
+          (bottom: 0.8pt + luma(160), rest: none)
+        } else if x > 0 { (right: linea-puntos.stroke, rest: none) } else { none }
+      },
+      fill: (x, y) => {
+        if y < 2 { luma(246) } else if x > 0 and calc.even(x) { luma(252) } else { none }
+      },
+      
+      // Fila 1: Meses
+      table.cell(rowspan: 2, align: left + horizon)[*Fase / Tarea planificada*],
+      table.cell(colspan: 3)[*Septiembre*],
+      table.cell(colspan: 4)[*Octubre*],
+      table.cell(colspan: 5)[*Noviembre*],
+      
+      // Fila 2: Semanas (Fecha lunes)
+      [14], [21], [28], [5], [12], [19], [26], [2], [9], [16], [23], [30],
+      
+      // FASE 1
+      table.cell(colspan: 13, fill: col-f1.lighten(92%), inset: 4pt)[
+        #text(weight: "bold", fill: col-f1.darken(25%))[Etapa 1: Adquisición base, hardware y primer filtro]
+      ],
+      [Adquisición y montaje de hardware], table.cell(colspan: 1)[#bar(col-f1)], ..([],) * 11,
+      [Investigación teórica y librerías], table.cell(colspan: 1)[#bar(col-f1)], ..([],) * 11,
+      [Comunicación I²C y lectura de datos crudos], [], table.cell(colspan: 2)[#bar(col-f1)], ..([],) * 9,
+      [Configuración inicial y lecturas del DMP], [], table.cell(colspan: 2)[#bar(col-f1)], ..([],) * 9,
+      [Implementación del Filtro Complementario], ..([],) * 2, table.cell(colspan: 1)[#bar(col-f1)], ..([],) * 9,
+      [Transmisión ESP32 a PC y monitor serie], ..([],) * 2, table.cell(colspan: 1)[#bar(col-f1)], ..([],) * 9,
+      [Redacción del Informe de Avance E2], ..([],) * 2, table.cell(colspan: 2)[#bar(col-f1)], ..([],) * 8,
+      
+      // FASE 2
+      table.cell(colspan: 13, fill: col-f2.lighten(92%), inset: 4pt)[
+        #text(weight: "bold", fill: col-f2.darken(25%))[Etapa 2: Integración, Filtro de Kalman y visualización 3D]
+      ],
+      [Calibración fina de offsets del DMP], ..([],) * 4, table.cell(colspan: 1)[#bar(col-f2)], ..([],) * 7,
+      [Implementación y ajuste del Filtro de Kalman], ..([],) * 4, table.cell(colspan: 2)[#bar(col-f2)], ..([],) * 6,
+      [Desarrollo visual (manos 3D)], ..([],) * 4, table.cell(colspan: 3)[#bar(col-f2)], ..([],) * 5,
+      [Optimización del Filtro Complementario], ..([],) * 5, table.cell(colspan: 2)[#bar(col-f2)], ..([],) * 5,
+      [Panel selector y graficador de error], ..([],) * 5, table.cell(colspan: 2)[#bar(col-f2)], ..([],) * 5,
+      [Integración de prototipo funcional (50 Hz)], ..([],) * 7, table.cell(colspan: 1)[#bar(col-f2)], ..([],) * 4,
+      [Redacción del Informe de Avance E3], ..([],) * 7, table.cell(colspan: 1)[#bar(col-f2)], ..([],) * 4,
+      
+      // FASE 3
+      table.cell(colspan: 13, fill: col-f3.lighten(92%), inset: 4pt)[
+        #text(weight: "bold", fill: col-f3.darken(25%))[Etapa 3: Ensayos experimentales, video y cierre]
+      ],
+      [Ensayos empíricos de drift y vibración], ..([],) * 8, table.cell(colspan: 2)[#bar(col-f3)], ..([],) * 2,
+      [Análisis comparativo de resultados], ..([],) * 8, table.cell(colspan: 2)[#bar(col-f3)], ..([],) * 2,
+      [Pulido final de interfaz y firmware], ..([],) * 9, table.cell(colspan: 2)[#bar(col-f3)], [],
+      [Grabación y edición del video demostrativo], ..([],) * 9, table.cell(colspan: 2)[#bar(col-f3)], [],
+      [Redacción del Informe Final], ..([],) * 9, table.cell(colspan: 3)[#bar(col-f3)],
+      
+      // HITOS Y ENTREGAS FORMALES
+      table.cell(colspan: 13, fill: col-hito.lighten(90%), inset: 4pt)[
+        #text(weight: "bold", fill: col-hito.darken(25%))[Entregas formales (hitos)]
+      ],
+      [Informe de Avance 1 (E2) -- 11/10/2026], ..([],) * 3, celda-hito(), ..([],) * 8,
+      [Informe de Avance 2 (E3) -- 08/11/2026], ..([],) * 7, celda-hito(), ..([],) * 4,
+      [Entrega Final e Informe -- 06/12/2026], ..([],) * 11, celda-hito(),
+    )
+  },
+  caption: [Diagrama de Gantt por etapas con entregas formales.],
+  kind: table,
+) <fig-gantt>
 = Documentación en video

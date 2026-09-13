@@ -142,9 +142,8 @@ La propuesta surge a partir del artículo “MPU6050 Gyro Drift Fix: DMP, Kalman
 
 Se realizará una invesigacion con la que se busca comparar la orientación obtenida mediante el Digital Motion Processor (DMP) con una segunda estimación calculada a partir de las mediciones de los sensores y diferentes métodos de filtrado.
 
-En el artículo se señala que el eje de yaw no posee una referencia absoluta cuando la orientación se obtiene únicamente a partir del giroscopio y acelerometro, por lo que puede presentar un error acumulativo. Como posible solución, se plantea incorporar un magnetómetro.
+En el artículo se señala que el eje de yaw no posee una referencia absoluta cuando la orientación se obtiene únicamente a partir del giroscopio y acelerometro, por lo que puede presentar un error acumulativo. Como posible solución, se sugiere incorporar un magnetómetro, ya que permite obtener una referencia adicional para la orientación. A partir de esta consideración, se decidió reemplazar el MPU6050 por el MPU9250, el cual incluye este sensor, además de los otros.
 
-A partir de esta consideración, se decidió utilizar el MPU9250 en lugar del MPU6050, debido a que incorpora un magnetómetro de tres ejes.La incorporación de este tercer tipo de sensor permite disponer de una referencia adicional para la estimación de la orientación, particularmente sobre el eje de yaw.
 
 = Objetivo
 
@@ -190,38 +189,35 @@ El hardware necesario para el desarrollo estará compuesto principalmente por lo
     align: (center, left, left, left),
     inset: 6pt,
     stroke: 0.5pt,
-    
+
     table.header([*Cantidad*], [*Descripción*], [*Link*], [*Precio unitario*]),
-    
+
     [1],
     [ESP32 NodeMCU WROOM-32, 38 pines, USB-C, Wi-Fi y Bluetooth],
     [#link(
       "https://www.mercadolibre.com.ar/esp32-nodemcu-wroom32-38-pines-usbc-wifi-bluetooth-arduino/up/MLAU5001930260?pdp_filters=item_id:MLA3878662278#is_advertising=true&searchVariation=MLAU5001930260&backend_model=search-backend&be_origin=backend&position=1&search_layout=grid&type=pad&tracking_id=9cd4be54-9d01-4f56-8f09-c12251c0e86e&ad_domain=VQCATCORE_LST&ad_position=1&ad_click_id=N2U1Mzg1NWUtNzM0My00NmNlLWJjZjItNTkyYTkxNzU4ZTkz",
     )[ESP32 WROOM-32]],
     [\$20.700],
-    
+
     [1],
     [Módulo GY-9250 basado en MPU9250, con acelerómetro, giroscopio y magnetómetro de tres ejes. Incluye DMP.],
     [#link(
       "https://www.sistemsoft.com.ar/electronica/placa-de-desarrollo/modulo-gy9250-mpu9250-acelerometro-giroscopo-magnetometro",
     )[MPU9250]],
     [\$21.960 + \$14.500 de envío],
-    
+
     [1], [Guante para montaje del sistema], [], [],
-    
+
     [1], [Juego de cables Dupont x10], [], [],
-    
+
     [2], [Capacitores de desacople: 0,1 µF], [], [],
-    
+
     [1], [Capacitor de desacople: 10 nF], [], [],
-    
+
     [1], [Cable USB-C para alimentación y programación del ESP32], [], [],
-    
-    [1],
-    [Computadora para programación, recepción de datos y ejecución de la interfaz],
-    [Disponible],
-    [],
-    
+
+    [1], [Computadora para programación, recepción de datos y ejecución de la interfaz], [Disponible], [],
+
     [1], [Power bank para alimentación portátil del prototipo (opcional)], [Disponible], [],
   ),
   caption: [Listado preliminar de materiales necesarios para el desarrollo del prototipo.],
@@ -284,14 +280,14 @@ En la @fig-gantt se ilustra la distribución temporal de las tareas y los hitos 
 #figure(
   {
     set text(size: 7.5pt, font: "Liberation Sans")
-    
+
     // Paleta de colores
     let col-f1 = rgb("2b6cb0") // Azul (Fase 1)
     let col-f2 = rgb("2c7a7b") // Teal (Fase 2)
     let col-f3 = rgb("c05621") // Ámbar (Fase 3)
     let col-hito = rgb("c92a2a") // Rojo para hitos
     let linea-puntos = (stroke: 0.4pt + luma(215), dash: "dotted")
-    
+
     // Barra de tarea limpia
     let bar(fill-col) = block(
       fill: fill-col.lighten(15%),
@@ -299,14 +295,14 @@ En la @fig-gantt se ilustra la distribución temporal de las tareas y los hitos 
       width: 100%,
       radius: 2.5pt,
     )
-    
+
     // Celda de hito (diamante centrado)
     let celda-hito() = table.cell(
       fill: col-hito.lighten(92%),
       align: center + horizon,
       text(fill: col-hito.darken(10%), size: 7.5pt, [◆]),
     )
-    
+
     table(
       columns: (5.2fr, ..(1fr,) * 12),
       align: (left + horizon, ..(center + horizon,) * 12),
@@ -319,16 +315,16 @@ En la @fig-gantt se ilustra la distribución temporal de las tareas y los hitos 
       fill: (x, y) => {
         if y < 2 { luma(246) } else if x > 0 and calc.even(x) { luma(252) } else { none }
       },
-      
+
       // Fila 1: Meses
       table.cell(rowspan: 2, align: left + horizon)[*Fase / Tarea planificada*],
       table.cell(colspan: 3)[*Septiembre*],
       table.cell(colspan: 4)[*Octubre*],
       table.cell(colspan: 5)[*Noviembre*],
-      
+
       // Fila 2: Semanas (Fecha lunes)
       [14], [21], [28], [5], [12], [19], [26], [2], [9], [16], [23], [30],
-      
+
       // FASE 1
       table.cell(colspan: 13, fill: col-f1.lighten(92%), inset: 4pt)[
         #text(weight: "bold", fill: col-f1.darken(25%))[Etapa 1: Adquisición base, hardware y primer filtro]
@@ -340,7 +336,7 @@ En la @fig-gantt se ilustra la distribución temporal de las tareas y los hitos 
       [Implementación del Filtro Complementario], ..([],) * 2, table.cell(colspan: 1)[#bar(col-f1)], ..([],) * 9,
       [Transmisión ESP32 a PC y monitor serie], ..([],) * 2, table.cell(colspan: 1)[#bar(col-f1)], ..([],) * 9,
       [Redacción del Informe de Avance E2], ..([],) * 2, table.cell(colspan: 2)[#bar(col-f1)], ..([],) * 8,
-      
+
       // FASE 2
       table.cell(colspan: 13, fill: col-f2.lighten(92%), inset: 4pt)[
         #text(weight: "bold", fill: col-f2.darken(25%))[Etapa 2: Integración, Filtro de Kalman y visualización 3D]
@@ -352,7 +348,7 @@ En la @fig-gantt se ilustra la distribución temporal de las tareas y los hitos 
       [Panel selector y graficador de error], ..([],) * 5, table.cell(colspan: 2)[#bar(col-f2)], ..([],) * 5,
       [Integración de prototipo funcional (50 Hz)], ..([],) * 7, table.cell(colspan: 1)[#bar(col-f2)], ..([],) * 4,
       [Redacción del Informe de Avance E3], ..([],) * 7, table.cell(colspan: 1)[#bar(col-f2)], ..([],) * 4,
-      
+
       // FASE 3
       table.cell(colspan: 13, fill: col-f3.lighten(92%), inset: 4pt)[
         #text(weight: "bold", fill: col-f3.darken(25%))[Etapa 3: Ensayos experimentales, video y cierre]
@@ -362,7 +358,7 @@ En la @fig-gantt se ilustra la distribución temporal de las tareas y los hitos 
       [Pulido final de interfaz y firmware], ..([],) * 9, table.cell(colspan: 2)[#bar(col-f3)], [],
       [Grabación y edición del video demostrativo], ..([],) * 9, table.cell(colspan: 2)[#bar(col-f3)], [],
       [Redacción del Informe Final], ..([],) * 9, table.cell(colspan: 3)[#bar(col-f3)],
-      
+
       // HITOS Y ENTREGAS FORMALES
       table.cell(colspan: 13, fill: col-hito.lighten(90%), inset: 4pt)[
         #text(weight: "bold", fill: col-hito.darken(25%))[Entregas formales (hitos)]

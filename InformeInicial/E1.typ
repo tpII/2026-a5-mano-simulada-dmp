@@ -270,17 +270,34 @@ El software del proyecto estará compuesto por diferentes procesos:
 ) <diagrama-flujo>
 
 == Sistema web
+
 La aplicación de software deberá permitir recibir los datos transmitidos por el ESP32 y representar visualmente el movimiento y la orientación de la mano.
 
-Se desarrollará utilizando Processing, con la biblioteca Toxiclibs para la representación y manipulación del modelo.
+Se desarrollará como una aplicación web local utilizando HTML, CSS y JavaScript. Para la representación de los modelos tridimensionales se utilizará Three.js, mientras que el gráfico se implementará mediante Chart.js. La aplicación se ejecutará desde el navegador de una computadora y se comunicará con el ESP32 mediante Wi-Fi y WebSocket.
 
-Como funcionalidad principal, la interfaz permitirá observar simultáneamente las dos representaciones tridimensionales de las manos. Una de ellas representará la orientación obtenida mediante el DMP, mientras que la otra representará la orientación calculada a partir de los datos crudos del acelerómetro, giroscopio y magnetómetro, utilizando los filtros implementados.
+Como funcionalidad principal, la interfaz permitirá observar simultáneamente dos representaciones tridimensionales de la mano. Una representará la orientación obtenida mediante el DMP, mientras que la otra mostrará la orientación calculada a partir de los datos del acelerómetro, giroscopio y magnetómetro mediante el filtro seleccionado.
 
-La interfaz contará con un panel de selección de filtros que permitirá al usuario elegir entre distintas opciones y visualizar las diferencias en el procesamiento de cada uno de ellos, con el objetivo de compararlos.
+La interfaz contará con controles para iniciar y detener la adquisición de datos, y permitirá seleccionar entre el filtro complementario y el filtro de Kalman. También mostrará los valores de roll, pitch y yaw, el filtro seleccionado y el tiempo transcurrido del ensayo.
 
-También contará con la visualización de la gráfica de error entre ambas estimaciones.
+Además, contará con un gráfico del error entre ambas estimaciones. La métrica utilizada para representar este error será definida durante la etapa de investigación y validación.
 
-La interfaz estará orientada principalmente a facilitar la evaluación experimental de las dos estrategias, permitiendo observar sus diferencias y analizar su comportamiento bajo distintas condiciones.
+En la @fig-mockup-interfaz se presenta un mockup preliminar de la interfaz propuesta. Este diseño muestra la distribución general de sus componentes y podrá modificarse durante la implementación.
+
+#figure(
+  image(
+    "images/mockup.png",
+    width: 100%,
+  ),
+  caption: [
+    Mockup preliminar de la interfaz web propuesta para la visualización y comparación de las estimaciones de orientación.
+  ],
+  kind: image,
+) <fig-mockup-interfaz>
+
+La interfaz estará orientada principalmente a facilitar la evaluación experimental de las estrategias implementadas, permitiendo observar sus diferencias y analizar su comportamiento bajo distintas condiciones.
+
+
+
 = Avances cronológicos de tareas
 
 == Diagrama de Gantt

@@ -171,9 +171,19 @@ El sistema deberá cumplir con los siguientes requerimientos no funcionales:
 = Esquema Gráfico del Proyecto
 Para realizar la investigación se desarrollará un dispositivo capaz de adquirir información relacionada con el movimiento y la orientación de una mano montando el MPU9250 sobre un guante y conectándolo a un ESP32. Los datos obtenidos serán procesados y transmitidos por red hacia una aplicación de software, donde se realizará la reconstrucción y visualización del movimiento de la mano.
 
-El MPU9250 estará conectado al ESP32 mediante el bus de comunicación I²C. El sensor proporcionará tanto la aproximación de la orientación realizada por el DMP como las mediciones del acelerómetro y del giroscopio, que serán utilizadas por el ESP32 para obtener la otra estimación de orientación planteada en el proyecto.
+El MPU9250 estará conectado al ESP32 mediante el bus de comunicación I²C. El sensor proporcionará tanto la estimación de orientación obtenida mediante el DMP como las mediciones del acelerómetro, giroscopio y magnetómetro. Estas mediciones serán utilizadas por el ESP32 para calcular una segunda estimación de orientación mediante los métodos de filtrado implementados por software.
 
-La información procesada por el ESP32 será transmitida mediante una conexión de red hacia una computadora donde se ejecutará la aplicación de software. Esta aplicación recibirá los datos, reconstruirá la orientación de la mano y permitirá visualizar y comparar los resultados obtenidos mediante ambos métodos.
+En la @fig-esquema-general se presenta la arquitectura general del sistema y el recorrido de la información entre sus principales componentes. Los resultados obtenidos mediante ambas estrategias serán transmitidos por Wi-Fi hacia una computadora, donde se ejecutará la aplicación de visualización. Esta aplicación recibirá los datos, reconstruirá la orientación de la mano y permitirá visualizar y comparar simultáneamente los resultados obtenidos mediante el DMP y el procesamiento por software.
+
+
+#figure(
+  image("images/diagrama_bloque.png", width: 100%),
+  caption: [
+    Diagrama de bloques del sistema.
+  ],
+  kind: image,
+) <fig-esquema-general>
+
 
 = Identificación de partes
 

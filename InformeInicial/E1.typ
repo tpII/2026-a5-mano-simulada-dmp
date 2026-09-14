@@ -399,3 +399,9 @@ En la @fig-gantt se ilustra la distribución temporal de las tareas y los hitos 
   kind: table,
 ) <fig-gantt>
 = Documentación en video
+
+
+Se adjunta el enlace a la presentación.
+
+#link("https://drive.google.com/file/d/1oN-svLcWDugoQn_Wu5j7ci9gLfHkvPRg/view?usp=drive_link")[Video presentación Plan de proyecto]
+

@@ -1,11 +1,11 @@
-#ifndef WIFI_AP_H
-#define WIFI_AP_H
+#ifndef ACCESSPOINT_H
+#define ACCESSPOINT_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void inicializar_wifi_ap(void);
+void access_point_init(void);
 
 #ifdef __cplusplus
 }

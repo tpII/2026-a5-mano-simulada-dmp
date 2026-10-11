@@ -24,7 +24,7 @@ int mpu_init(void){
   if (i2c_leer_registros(MPU_ADDR , WHO_AM_I , &id , 1) != 0)return -1;
   printf("WHO_AM_I: 0x%02X\n" , id);
   // Esta version esta validada solo con MPU6050. MPU9250 requiere validar su configuracion.
-  if (id != 0x68){ printf("Esta version requiere MPU6050 (id 0x68).\n"); return -1; }
+  if (id != 0x70){ printf("Esta version requiere MPU6050 (id 0x68).\n"); return -1; }
   mpu_id = id;
   if (i2c_escribir_registro(MPU_ADDR , PWR_MGMT_1 , 0x01) != 0)return -1;
   // 1 kHz / (1 + 19) = 50 Hz (con DLPF activado).

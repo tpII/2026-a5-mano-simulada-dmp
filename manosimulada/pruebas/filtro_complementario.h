@@ -2,6 +2,7 @@
 #define FILTRO_COMPLEMENTARIO_H
 
 #include "mpu9250.h"
+#include "mag.h"
 
 struct Orientacion {
     float roll;
@@ -9,11 +10,10 @@ struct Orientacion {
     float yaw;
 };
 
-// Establece la orientacion inicial usando la gravedad.
-void filtro_iniciar(const mpu_datos_t &datos);
+// Establece la orientacion inicial usando acelerometro y magnetometro.
+void filtro_iniciar(const mpu_datos_t &datos, const mag_datos_t &mag);
 
-// Actualiza roll, pitch y yaw. dt se expresa en segundos.
-// Los angulos devueltos estan en radianes.
-Orientacion filtro_actualizar(const mpu_datos_t &datos, float dt);
+// Actualiza roll, pitch y yaw (9-DoF) en radianes. dt en segundos.
+Orientacion filtro_actualizar(const mpu_datos_t &datos, const mag_datos_t &mag, float dt);
 
 #endif

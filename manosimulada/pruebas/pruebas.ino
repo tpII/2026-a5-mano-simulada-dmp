@@ -2,6 +2,7 @@
 #include "i2c.h"
 #include "mpu9250.h"
 #include "filtro_complementario.h"
+#include "mag.h"
 
 // A5: MPU6050 -> DATA_READY -> I2C -> filtro complementario -> USB CSV.
 static const uint8_t PIN_INT = 23;
@@ -27,6 +28,9 @@ void setup(){
     Serial.println("# ERROR MPU init");
     while (true) delay(1000);
   }
+  if (mag_init() != 0) {
+    Serial.println("# AVISO: Magnetometro no encontrado.");
+  }
   pinMode(PIN_INT , INPUT);
   attachInterrupt(digitalPinToInterrupt(PIN_INT) , isrMpu , RISING);
   if (mpu_habilitar_interrupcion() != 0){
@@ -47,23 +51,43 @@ void loop(){
   if (pendientes > 0){
     if (pendientes > 1) avisosAgrupados += pendientes - 1;
     mpu_datos_t d;
+    mag_datos_t m;
     if (mpu_leer(&d) == 0){
+      mag_leer(&m);
       const uint32_t t = micros(); // timestamp despues de la lectura I2C
       if (!filtroListo){
-        filtro_iniciar(d);
+        filtro_iniciar(d,m);
         filtroListo = true;
         timestampAnterior = t;
       }
       else{
         float dt = (uint32_t) (t - timestampAnterior) / 1000000.0f;
         timestampAnterior = t;
+
+        //        Datos en unidades feas (acelerometro-> (m/s^2), giroscopio -->(rad/s) , (roll, pitch, yaw)--> (rad) , magnetometro--> crudos sensor (LSB)) 
         // No integramos saltos anormales de tiempo.
-        if (dt > 0.0f && dt < 0.2f){
-          Orientacion o = filtro_actualizar(d , dt);
-          Serial.printf("%lu,%.4f,%.4f,%.4f,%.5f,%.5f,%.5f,%.6f,%.6f,%.6f\n" ,
+        /*if (dt > 0.0f && dt < 0.2f){
+          Orientacion o = filtro_actualizar(d ,m , dt);
+          Serial.printf("%lu,%.4f,%.4f,%.4f,%.5f,%.5f,%.5f,%.6f,%.6f,%.6f,%.1f,%.1f,%.1f\n" ,
             (unsigned long) t , d.ax , d.ay , d.az ,
-            d.gx , d.gy , d.gz , o.roll , o.pitch , o.yaw);
+            d.gx , d.gy , d.gz , o.roll , o.pitch , o.yaw,
+            m.mx , m.my , m.mz);
           muestras++;
+        }*/
+        // ****** DATOS EN GRADOS ******
+        if (dt > 0.0f && dt < 0.2f){
+          Orientacion o = filtro_actualizar(d, m, dt);
+          muestras++;
+
+          // Imprime 1 de cada 10 muestras (a 5 Hz) para poder leerlo cómodo
+          if (muestras % 10 == 0) {
+            float roll_deg  = o.roll  * (180.0f / PI);
+            float pitch_deg = o.pitch * (180.0f / PI);
+            float yaw_deg   = o.yaw   * (180.0f / PI);
+
+            Serial.printf("Roll: %+6.1f°  |  Pitch: %+6.1f°  |  Yaw: %+6.1f°\n",
+                          roll_deg, pitch_deg, yaw_deg);
+          }
         }
       }
     }
@@ -84,3 +108,5 @@ void loop(){
   }
   delay(1);
 }
+
+

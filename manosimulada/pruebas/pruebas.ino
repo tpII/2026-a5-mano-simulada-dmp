@@ -66,16 +66,16 @@ void loop(){
 
         //        Datos en unidades feas (acelerometro-> (m/s^2), giroscopio -->(rad/s) , (roll, pitch, yaw)--> (rad) , magnetometro--> crudos sensor (LSB)) 
         // No integramos saltos anormales de tiempo.
-        /*if (dt > 0.0f && dt < 0.2f){
+        if (dt > 0.0f && dt < 0.2f){
           Orientacion o = filtro_actualizar(d ,m , dt);
           Serial.printf("%lu,%.4f,%.4f,%.4f,%.5f,%.5f,%.5f,%.6f,%.6f,%.6f,%.1f,%.1f,%.1f\n" ,
             (unsigned long) t , d.ax , d.ay , d.az ,
             d.gx , d.gy , d.gz , o.roll , o.pitch , o.yaw,
             m.mx , m.my , m.mz);
           muestras++;
-        }*/
+        }
         // ****** DATOS EN GRADOS ******
-        if (dt > 0.0f && dt < 0.2f){
+        /*if (dt > 0.0f && dt < 0.2f){
           Orientacion o = filtro_actualizar(d, m, dt);
           muestras++;
 
@@ -88,7 +88,7 @@ void loop(){
             Serial.printf("Roll: %+6.1f°  |  Pitch: %+6.1f°  |  Yaw: %+6.1f°\n",
                           roll_deg, pitch_deg, yaw_deg);
           }
-        }
+        }*/
       }
     }
     else{

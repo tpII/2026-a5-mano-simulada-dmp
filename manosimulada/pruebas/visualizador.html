@@ -2,15 +2,15 @@
 <html lang="es">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>A5 · Visualizador MPU6050</title>
+<title>A5 · Visualizador MPU6050 + QMC5883L</title>
 <style>
 :root{color-scheme:dark;font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#101827;color:#edf3fc}*{box-sizing:border-box}body{margin:0;padding:28px;max-width:1200px;margin-inline:auto}header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}h1{font-size:1.55rem;margin:0}p{color:#aebdd3}button{background:#22b8aa;color:#081b22;border:0;padding:12px 18px;border-radius:9px;font-size:1rem;font-weight:650;cursor:pointer}button:disabled{opacity:.5;cursor:default}#desconectar{background:#27374c;color:white}.controls{display:flex;gap:8px;flex-wrap:wrap}.layout{display:grid;grid-template-columns:minmax(0,2fr) minmax(250px,1fr);gap:16px;margin-top:22px}.panel{background:#172338;border:1px solid #304159;border-radius:14px;padding:16px}#vista{height:470px;min-width:0;position:relative}#vista canvas{display:block;width:100%;height:100%}.overlay{position:absolute;top:15px;left:18px;color:#8fa4bd;font-size:13px;pointer-events:none}.metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.metric{background:#101b2b;border-radius:10px;padding:12px}.metric label{font-size:.78rem;color:#94abc6;display:block;margin-bottom:5px}.metric strong{font-size:1.3rem;font-variant-numeric:tabular-nums}.status{margin-top:12px;display:flex;align-items:center;gap:9px}.dot{width:10px;height:10px;border-radius:50%;background:#788396}.dot.ok{background:#22b8aa}.legend{display:flex;gap:15px;margin-top:12px;font-size:.86rem;color:#c2d1e1}.legend span:before{content:'●';margin-right:5px}.legend .x:before{color:#f36e77}.legend .y:before{color:#6fe49f}.legend .z:before{color:#69abff}small{color:#9fb2cc}#error{color:#ffb3b3}.tag{background:#23374f;padding:5px 8px;border-radius:6px;font-size:13px}@media(max-width:800px){.layout{grid-template-columns:1fr}#vista{height:360px}body{padding:16px}}
 </style>
 </head><body>
-<header><div><h1>A5 · Visualizador MPU6050</h1><p>Datos del firmware modular real (I²C + DATA_READY a 50 Hz) · orientación estimada temporalmente en el navegador</p></div><div class="controls"><button id="conectar">Conectar ESP32</button><button id="desconectar" disabled>Desconectar</button><button id="reiniciar">Centrar orientación</button></div></header>
+<header><div><h1>A5 · Visualizador IMU</h1><p>MPU-6050 + QMC5883L (13 campos CSV vía Web Serial)</p></div><div class="controls"><button id="conectar">Conectar ESP32</button><button id="desconectar" disabled>Desconectar</button><button id="reiniciar">Centrar orientación</button></div></header>
 <div class="status"><span id="dot" class="dot"></span><span id="estado">Sin conectar</span><span class="tag">115200 baudios</span></div><div id="error" role="alert"></div>
-<div class="layout"><section class="panel"><div id="vista"><div class="overlay">Vista 3D · componentes arriba · pines hacia vos (borde inferior de la foto)</div></div><div class="legend"><span class="x">X: derecha de la foto</span><span class="y">Y: hacia el borde opuesto a los pines</span><span class="z">Z: hacia arriba de los componentes</span></div></section><aside class="panel"><h2 style="margin-top:0;font-size:1.1rem">Lecturas</h2><div class="metrics"><div class="metric"><label>Roll</label><strong id="roll">0.0°</strong></div><div class="metric"><label>Pitch</label><strong id="pitch">0.0°</strong></div><div class="metric"><label>Yaw relativo</label><strong id="yaw">0.0°</strong></div><div class="metric"><label>Frecuencia recibida</label><strong id="hz">—</strong></div><div class="metric"><label>Ax (m/s²)</label><strong id="ax">—</strong></div><div class="metric"><label>Ay (m/s²)</label><strong id="ay">—</strong></div><div class="metric"><label>Az (m/s²)</label><strong id="az">—</strong></div><div class="metric"><label>Gz (rad/s)</label><strong id="gz">—</strong></div></div><p style="font-size:.87rem;line-height:1.5">Modelo orientado como el módulo de tu foto: pines en el borde delantero, componentes visibles y Z perpendicular a la placa. La adquisición y el filtro complementario de roll y pitch se calculan en el ESP32. El navegador únicamente representa los ángulos recibidos. El yaw se obtiene integrando el giroscopio: <strong>acumula deriva</strong> y no representa un rumbo absoluto.</p><small id="contador">0 muestras recibidas</small></aside></div>
-<p><small>Requiere Chrome o Edge de escritorio con Web Serial, y abrir esta página desde http://localhost (por ejemplo, <code>python -m http.server 8000</code>). Cerrá antes el Monitor Serie de Arduino IDE.</small></p>
+<div class="layout"><section class="panel"><div id="vista"><div class="overlay">Vista 3D · componentes arriba · pines hacia vos</div></div><div class="legend"><span class="x">X: derecha</span><span class="y">Y: adelante</span><span class="z">Z: arriba</span></div></section><aside class="panel"><h2 style="margin-top:0;font-size:1.1rem">Lecturas</h2><div class="metrics"><div class="metric"><label>Roll</label><strong id="roll">0.0°</strong></div><div class="metric"><label>Pitch</label><strong id="pitch">0.0°</strong></div><div class="metric"><label>Yaw</label><strong id="yaw">0.0°</strong></div><div class="metric"><label>Frecuencia</label><strong id="hz">—</strong></div><div class="metric"><label>Ax (m/s²)</label><strong id="ax">—</strong></div><div class="metric"><label>Ay (m/s²)</label><strong id="ay">—</strong></div><div class="metric"><label>Az (m/s²)</label><strong id="az">—</strong></div><div class="metric"><label>Gz (rad/s)</label><strong id="gz">—</strong></div><div class="metric"><label>Mx (µT/LSB)</label><strong id="mx">—</strong></div><div class="metric"><label>My (µT/LSB)</label><strong id="my">—</strong></div></div><small id="contador">0 muestras recibidas</small></aside></div>
+
 <script type="module">
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js';
 const $=id=>document.getElementById(id);
@@ -19,12 +19,7 @@ const camera=new THREE.PerspectiveCamera(42,1,.1,100);camera.position.set(3.8,3.
 const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));$('vista').appendChild(renderer.domElement);
 scene.add(new THREE.HemisphereLight(0xffffff,0x536174,2.3));const light=new THREE.DirectionalLight(0xffffff,2);light.position.set(5,8,4);scene.add(light);
 const group=new THREE.Group();scene.add(group);
-// Convención física del módulo fotografiado:
-// X del sensor: a la derecha de la fotografía.
-// Y del sensor: desde los pines hacia el borde opuesto de la placa.
-// Z del sensor: perpendicular a la cara de componentes, hacia arriba.
-// En Three.js el eje vertical es Y: Xsensor -> +Xescena;
-// Ysensor -> -Zescena; Zsensor -> +Yescena.
+
 const qAlinear=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0),-Math.PI/2);
 const qAlinearInv=qAlinear.clone().invert();
 const qSensor=new THREE.Quaternion();
@@ -35,20 +30,16 @@ function block(w,h,d,x,y,z,color){
   const obj=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshStandardMaterial({color,roughness:.5,metalness:.12}));
   obj.position.set(x,y,z);group.add(obj);return obj;
 }
-// IC y componentes visibles de la cara superior.
 block(.48,.14,.55,0,.11,.1,0x111922);
 block(.29,.12,.18,0,.11,-.75,0xb6a35b);
 for(const x of [-.55,.55]) for(const z of [-.65,-.25,.22,.65]) block(.10,.07,.18,x,.08,z,0xd2c7a1);
-// Ocho pads de conexión en el borde inferior de la imagen (+Z de escena).
 for(let i=0;i<8;i++){
   const x=-.62+i*(1.24/7);
   block(.125,.025,.16,x,.057,1.055,0xd9ac4e);
 }
-// Marcas asimétricas: identificar inequívocamente la dirección de los pines.
 block(.98,.017,.055,0,.066,-1.05,0xe1efff);
 block(.12,.022,.16,-.56,.068,1.05,0xf2da64);
-// Ejes FIJOS al sensor en su propia orientación, no los ejes de Three.js.
-// X -> derecha, Y -> hacia el borde superior, Z -> fuera de la placa.
+
 function sensorAxis(direction,color){
   const arrow=new THREE.ArrowHelper(direction,new THREE.Vector3(0,.23,0),1.12,color,.18,.10);
   group.add(arrow);
@@ -57,34 +48,86 @@ sensorAxis(new THREE.Vector3(1,0,0),0xf36e77);
 sensorAxis(new THREE.Vector3(0,0,-1),0x6fe49f);
 sensorAxis(new THREE.Vector3(0,1,0),0x69abff);
 const grid=new THREE.GridHelper(8,12,0x40526b,0x2d4055);grid.position.y=-1.35;scene.add(grid);
-function resize(){const el=$('vista');const w=el.clientWidth,h=el.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()}window.addEventListener('resize',resize);resize();
+
+function resize(){const el=$('vista');const w=el.clientWidth,h=el.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()}
+window.addEventListener('resize',resize);resize();
+
 let port=null,reader=null,reading=false,buffer='',n=0,intervalCount=0,sec=performance.now();
 let sceneCenter=new THREE.Quaternion(),centerPending=false;
-const DEG=180/Math.PI;
-function reset(){centerPending=true;}
-$('reiniciar').onclick=reset;
+const RAD = Math.PI / 180;
+$('reiniciar').onclick=()=>{centerPending=true;};
+
 function setStatus(msg,ok){$('estado').textContent=msg;$('dot').classList.toggle('ok',ok)}
+
 function parseLine(line){
+  if(line.startsWith('#')) return; // Ignora encabezados
   const s=line.trim().split(',');
-  if(s.length!==10)return;
+  if(s.length < 10) return; // Acepta 10, 13 o más columnas
   const a=s.map(Number);
-  if(a.some(v=>!Number.isFinite(v)))return;
-  const [t,ax,ay,az,gx,gy,gz,roll,pitch,yaw]=a;
-  // Angulos calculados en ESP32, en radianes; JS solo los visualiza.
-  qSensor.setFromEuler(new THREE.Euler(roll,pitch,yaw,'ZYX'));
+  if(a.some(v=>!Number.isFinite(v))) return;
+
+  const [t,ax,ay,az,gx,gy,gz,roll,pitch,yaw,mx,my,mz]=a;
+
+  // Si los datos vienen en grados (valores absolutos habituales > 3.14):
+  const rollRad  = (Math.abs(roll) > Math.PI * 2) ? roll * RAD : roll;
+  const pitchRad = (Math.abs(pitch) > Math.PI * 2) ? pitch * RAD : pitch;
+  const yawRad   = (Math.abs(yaw) > Math.PI * 2) ? yaw * RAD : yaw;
+
+  qSensor.setFromEuler(new THREE.Euler(rollRad, pitchRad, yawRad, 'ZYX'));
   const escena=qAlinear.clone().multiply(qSensor).multiply(qAlinearInv);
   if(centerPending){sceneCenter.copy(escena).invert();centerPending=false;}
   group.quaternion.copy(sceneCenter).multiply(escena);
-  $('roll').textContent=(roll*DEG).toFixed(1)+'°';
-  $('pitch').textContent=(pitch*DEG).toFixed(1)+'°';
-  $('yaw').textContent=(yaw*DEG).toFixed(1)+'°';
-  for(const [id,val] of [['ax',ax],['ay',ay],['az',az],['gz',gz]])$(id).textContent=val.toFixed(2);
+
+  $('roll').textContent=(rollRad / RAD).toFixed(1)+'°';
+  $('pitch').textContent=(pitchRad / RAD).toFixed(1)+'°';$('yaw').textContent=(yawRad / RAD).toFixed(1)+'°';
+
+  for(const [id,val] of [['ax',ax],['ay',ay],['az',az],['gz',gz]]){
+    if($(id))$(id).textContent=val.toFixed(2);
+  }
+  if(mx !== undefined && $('mx'))$('mx').textContent=mx.toFixed(0);
+  if(my !== undefined && $('my'))$('my').textContent=my.toFixed(0);
+
   n++;intervalCount++;$('contador').textContent=`${n} muestras recibidas`;
   const now=performance.now();
   if(now-sec>=1000){$('hz').textContent=(intervalCount*1000/(now-sec)).toFixed(1)+' Hz';sec=now;intervalCount=0;}
 }
-async function disconnect(){reading=false;if(reader){try{await reader.cancel()}catch{}}if(port){try{await port.close()}catch{}}port=null;reader=null;$('conectar').disabled=false;$('desconectar').disabled=true;setStatus('Desconectado',false)}
-$('conectar').onclick=async()=>{if(!('serial'in navigator)){$('error').textContent='Este navegador no admite Web Serial. Usá Chrome o Edge de escritorio en localhost.';return}try{$('error').textContent='';port=await navigator.serial.requestPort();await port.open({baudRate:115200});$('conectar').disabled=true;$('desconectar').disabled=false;reading=true;sceneCenter.identity();centerPending=false;setStatus('Conectado · esperando datos CSV',true);reader=port.readable.getReader();const decoder=new TextDecoder();while(reading){const {value,done}=await reader.read();if(done)break;if(value){buffer+=decoder.decode(value,{stream:true});const lines=buffer.split(/\r?\n/);buffer=lines.pop();for(const line of lines)parseLine(line);}}}catch(e){$('error').textContent=e.message||String(e)}finally{if(reader){try{reader.releaseLock()}catch{}reader=null;}if(port){try{await port.close()}catch{}port=null;}$('conectar').disabled=false;$('desconectar').disabled=true;setStatus('Desconectado',false)}};
+
+$('conectar').onclick=async()=>{
+  if(!('serial'in navigator)){$('error').textContent='Web Serial no soportado. Usá Chrome o Edge.';return}
+  try{
+    $('error').textContent='';
+    port=await navigator.serial.requestPort();
+    await port.open({baudRate:115200});
+    $('conectar').disabled=true;
+    $('desconectar').disabled=false;
+    reading=true;
+    sceneCenter.identity();
+    centerPending=false;
+    setStatus('Conectado · recibiendo datos',true);
+    reader=port.readable.getReader();
+    const decoder=new TextDecoder();
+    while(reading){
+      const {value,done}=await reader.read();
+      if(done)break;
+      if(value){
+        buffer+=decoder.decode(value,{stream:true});
+        const lines=buffer.split(/\r?\n/);
+        buffer=lines.pop();
+        for(const line of lines) parseLine(line);
+      }
+    }
+  }catch(e){
+    $('error').textContent=e.message||String(e);
+  }finally{
+    if(reader){try{reader.releaseLock()}catch{}reader=null;}
+    if(port){try{await port.close()}catch{}port=null;}
+    $('conectar').disabled=false;
+    $('desconectar').disabled=true;
+    setStatus('Desconectado',false);
+  }
+};
+
 $('desconectar').onclick=async()=>{reading=false;if(reader)try{await reader.cancel()}catch{}};
-function animate(){requestAnimationFrame(animate);renderer.render(scene,camera)}animate();
+function animate(){requestAnimationFrame(animate);renderer.render(scene,camera)}
+animate();
 </script></body></html>

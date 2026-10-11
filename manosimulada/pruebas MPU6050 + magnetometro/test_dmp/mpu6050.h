@@ -1,5 +1,5 @@
-#ifndef A5_MPU9250_H
-#define A5_MPU9250_H
+#ifndef A5_MPU6050_H
+#define A5_MPU6050_H
 #ifdef __cplusplus
 extern "C" {
 #endif

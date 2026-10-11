@@ -1,6 +1,6 @@
 #include <Arduino.h>
 #include "i2c.h"
-#include "mpu9250.h"
+#include "mpu6050.h"
 #include "filtro_complementario.h"
 #include "mag.h"
 

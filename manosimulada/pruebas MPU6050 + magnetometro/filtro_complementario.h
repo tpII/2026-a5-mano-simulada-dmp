@@ -1,7 +1,7 @@
 #ifndef FILTRO_COMPLEMENTARIO_H
 #define FILTRO_COMPLEMENTARIO_H
 
-#include "mpu9250.h"
+#include "mpu6050.h"
 #include "mag.h"
 
 struct Orientacion {

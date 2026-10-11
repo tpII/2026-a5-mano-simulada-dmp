@@ -1,4 +1,4 @@
-#include "mpu9250.h"
+#include "mpu6050.h"
 #include "i2c.h"
 #include <stdint.h>
 #include <stddef.h>

@@ -202,7 +202,7 @@ En la @fig-arquitectura se muestra gráficamente la conexión descripta.
 
 #figure(
   image("images/esquemaMPU+magneto.png", width: 100%),
-  caption: [Esquema de arquitectura general del sistema A5 – Mano Simulada con DMP.],
+  caption: [Esquema de arquitectura general del sistema.],
   kind: image,
 ) <fig-arquitectura>
 
@@ -642,4 +642,4 @@ La @fig-captura-interfaz presenta una captura del visualizador experimental desa
 ) <fig-captura-interfaz>
 == Links de la entrega
 
-El código fuente está disponible en #link("https://github.com/tpII/2026-a5-mano-simulada-dmp"), la bitácora de trabajo en #link("https://github.com/tpII/2026-a5-mano-simulada-dmp/wiki/BITACORA") y el video de demostración en #link("https://URL-DEL-VIDEO").
+El código fuente está disponible en el #link("https://github.com/tpII/2026-a5-mano-simulada-dmp")[repositorio del proyecto], la bitácora de trabajo en la #link("https://github.com/tpII/2026-a5-mano-simulada-dmp/wiki/BITACORA")[wiki del repositorio] y el video de demostración en #link("https://drive.google.com/file/d/1Ytu-ZvgfhrjKuKCjhcG4eb800j2wZBuh/view?usp=sharing")[Google Drive].

@@ -41,13 +41,13 @@ static float calcular_yaw_mag(const mag_datos_t &m, float roll, float pitch) {
     return atan2f(-Yh, Xh);
 }
 
-void filtro_iniciar(const mpu_datos_t &d, const mag_datos_t &m) {
+void filtro_iniciar(const mpu_datos_t &d, const mag_datos_t &m, bool mag_valido) {
     orientacion.roll = atan2f(d.ay, d.az);
     orientacion.pitch = atan2f(-d.ax, sqrtf(d.ay * d.ay + d.az * d.az));
-    orientacion.yaw = calcular_yaw_mag(m, orientacion.roll, orientacion.pitch);
+    orientacion.yaw = mag_valido ? calcular_yaw_mag(m, orientacion.roll, orientacion.pitch) : 0.0f;
 }
 
-Orientacion filtro_actualizar(const mpu_datos_t &d, const mag_datos_t &m, float dt) {
+Orientacion filtro_actualizar(const mpu_datos_t &d, const mag_datos_t &m, float dt, bool mag_nuevo) {
     if (dt <= 0.0f || !isfinite(dt)) {
         return orientacion;
     }
@@ -69,6 +69,11 @@ Orientacion filtro_actualizar(const mpu_datos_t &d, const mag_datos_t &m, float 
     // 4. Fusión Roll y Pitch
     orientacion.roll = ALPHA * roll_gyro + (1.0f - ALPHA) * roll_acc;
     orientacion.pitch = ALPHA * pitch_gyro + (1.0f - ALPHA) * pitch_acc;
+
+    if (!mag_nuevo) {
+        orientacion.yaw = normalizar_angulo(yaw_gyro);
+        return orientacion;
+    }
 
     // 5. Rumbo absoluto del magnetómetro con tilt compensation
     const float yaw_mag = calcular_yaw_mag(m, orientacion.roll, orientacion.pitch);

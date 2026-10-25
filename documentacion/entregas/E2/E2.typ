@@ -1,4 +1,4 @@
-#import "config.typ": informe
+#import "../../typst/configuracion.typ": informe
 
 #show: informe.with(
   titulo: "Informe de Avance - Octubre",
@@ -47,7 +47,7 @@ El resto de los materiales se mantienen según lo establecido en el plan de proy
 La arquitectura propuesta separa las etapas de adquisición, procesamiento y visualización. El ESP32 recibe las mediciones por I²C, estima la orientación mediante los dos métodos previstos y transmite los resultados a la interfaz de visualización. Este esquema, que se muestra en la @fig-esquema-general, coincide con el presentado en el Plan de Proyecto, ya que no se realizaron modificaciones.
 
 #figure(
-  image("images/diagrama_bloque.png", width: 100%),
+  image("../../imagenes/diagrama_bloque.png", width: 100%),
   caption: [
     Diagrama de bloques del sistema presentado en el Plan de Proyecto.
   ],
@@ -201,7 +201,7 @@ El pin INT se utiliza para indicar que hay nuevas mediciones disponibles (señal
 En la @fig-arquitectura se muestra gráficamente la conexión descripta.
 
 #figure(
-  image("images/esquemaMPU+magneto.png", width: 100%),
+  image("../../imagenes/esquema_mpu_magnetometro.png", width: 100%),
   caption: [Esquema de arquitectura general del sistema.],
   kind: image,
 ) <fig-arquitectura>
@@ -232,14 +232,14 @@ Los requisitos de alimentación son los previstos en el Plan de Proyecto. Se res
   gutter: 2em,
   [
     #figure(
-      image("images/mpu9250_i2c.png", width: 100%),
+      image("../../imagenes/mpu9250_i2c.png", width: 100%),
       caption: [Conexión recomendada en la hoja de datos para comunicación I²C.],
       kind: image,
     ) <fig-mpu9250>
   ],
   [
     #figure(
-      image("images/gy9250.png", width: 60%),
+      image("../../imagenes/gy9250.png", width: 60%),
       caption: [Módulo GY-9250],
       kind: image,
     ) <fig-gy9250>
@@ -623,10 +623,10 @@ La @fig-prototipo-completo muestra el montaje físico del prototipo experimental
     columns: (1fr, 1fr),
     gutter: 2em,
     [
-        #image("images/prototipoSensores+ESP.jpeg", width: 100%)
+        #image("../../imagenes/prototipo_sensores_esp.jpeg", width: 100%)
     ],
     [
-      #image("images/prototipoSensores.jpeg", width: 100%)
+      #image("../../imagenes/prototipo_sensores.jpeg", width: 100%)
     ]
   ),
   caption: [Prototipo completo para las pruebas con MPU6050 y magnetómetro],
@@ -636,7 +636,7 @@ La @fig-prototipo-completo muestra el montaje físico del prototipo experimental
 La @fig-captura-interfaz presenta una captura del visualizador experimental desarrollado con JavaScript y Three.js, que recibe por Web Serial los ángulos calculados por el ESP32 y los representa sobre un modelo tridimensional. Corresponde a la sección #link(<sec:otros-avances>)[Otros avances] y recibe los datos descritos en #link(<sec:comunicacion-pc>)[Transmisión ESP32 a PC].
 
 #figure(
-  image("images/interfaz-prototipo.jpeg", width: 90%),
+  image("../../imagenes/interfaz_prototipo.jpeg", width: 90%),
   caption: [Captura del visualizador experimental con Three.js.],
   kind: image,
 ) <fig-captura-interfaz>

@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mano simulada: DMP contra software</title>
+<link rel="stylesheet" href="estilos/estilo.css">
+<script type="importmap">{"imports":{"three":"./vendor/three.module.js","three/addons/":"./vendor/"}}</script>
+<script src="vendor/chart.umd.min.js"></script>
+<script type="module" src="js/main.js"></script>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Mano simulada: DMP contra software</h1>
+    <span id="estado" class="chip" data-s="off">Desconectado</span>
+  </header>
+
+  <main>
+    <section class="escena" id="escena">
+      <div class="rotulo izq dmp"><b>DMP del MPU6050</b>
+        <p>Roll <i id="dR">—</i> Pitch <i id="dP">—</i> Yaw <i id="dY">—</i></p></div>
+      <div class="rotulo der sw"><b>Software: <span id="filtroNombre">Complementario</span></b>
+        <p>Roll <i id="sR">—</i> Pitch <i id="sP">—</i> Yaw <i id="sY">—</i></p></div>
+      <button id="btnCam" class="flota">Restablecer cámara</button>
+    </section>
+    <section class="graficos">
+      <div class="graf"><h2>Orientación de ambas rutas</h2><div class="lienzo"><canvas id="gA"></canvas></div></div>
+      <div class="graf"><h2>Divergencia angular entre estimaciones</h2><div class="lienzo"><canvas id="gB"></canvas></div>
+        <p class="nota">Compara dos estimaciones entre sí. No es el error real: para eso hace falta una referencia externa.</p></div>
+    </section>
+  </main>
+
+  <aside>
+    <section>
+      <h2>Conexión</h2>
+      <label>Dirección del ESP32<input id="url" value="ws://192.168.4.1/ws" spellcheck="false"></label>
+      <div class="fila"><button id="btnWs" class="pri">Conectar</button><button id="btnDemo">Modo demo</button><button id="btnCorte">Cortar</button></div>
+      <p class="nota" id="aviso"></p>
+    </section>
+    <section>
+      <h2>Ensayo</h2>
+      <div class="fila"><button id="btnIni" class="pri">Iniciar</button><button id="btnStop" disabled>Detener</button><button id="btnCsv" disabled>Guardar CSV</button></div>
+      <dl><dt>Tiempo</dt><dd id="tiempo">00:00</dd><dt>Divergencia actual</dt><dd id="div">—</dd>
+      <dt>Promedio</dt><dd id="media">—</dd><dt>Máxima</dt><dd id="max">—</dd><dt>Desvío</dt><dd id="desv">—</dd></dl>
+    </section>
+    <section>
+      <h2>Algoritmo por software</h2>
+      <select id="filtro" aria-label="Algoritmo por software">
+        <option value="comp">Complementario (acel. + giro)</option>
+        <option value="mag">Complementario + magnetómetro</option>
+        <option value="kalman" disabled>Kalman (pendiente de implementar)</option>
+      </select>
+    </section>
+    <section>
+      <h2>Referencia</h2>
+      <div class="fila"><button id="btnRef">Fijar referencia</button><button id="btnRefOff">Quitar</button><button id="btnCal">Calibrar sensor</button></div>
+      <p class="nota" id="refEstado"></p>
+      <p class="nota">Fijar referencia alinea las dos manos en pantalla. Calibrar sensor le pide al firmware recalcular los offsets: dejá el guante quieto.</p>
+    </section>
+    <section>
+      <h2>Gráficos</h2>
+      <label>Eje a comparar<select id="eje"><option value="roll">Roll</option><option value="pitch">Pitch</option><option value="yaw">Yaw</option></select></label>
+      <div class="fila"><button id="btnPausa" aria-pressed="false">Pausar gráficos</button><button id="btnLimpiar">Reiniciar</button></div>
+    </section>
+    <section>
+      <h2>Enlace de datos</h2>
+      <dl><dt>Frecuencia real</dt><dd id="hz">—</dd><dt>Muestras recibidas</dt><dd id="muestras">0</dd><dt>Paquetes perdidos</dt><dd id="perdidos">0</dd></dl>
+    </section>
+  </aside>
+</div>
+</body>
+</html>

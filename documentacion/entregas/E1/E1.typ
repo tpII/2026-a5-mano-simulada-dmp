@@ -1,4 +1,4 @@
-#import "config.typ": informe
+#import "../../typst/configuracion.typ": informe
 
 #show: informe.with(
   titulo: "Plan de Proyecto",
@@ -44,7 +44,7 @@ En la @fig-esquema-general se presenta la arquitectura general del sistema y el 
 
 
 #figure(
-  image("images/diagrama_bloque.png", width: 100%),
+  image("../../imagenes/diagrama_bloque.png", width: 100%),
   caption: [
     Diagrama de bloques del sistema.
   ],
@@ -112,7 +112,7 @@ Cuando se encuentran habilitados los 9 ejes de movimiento y el DMP, el fabricant
 Además, como se observa en la @fig-alimentacion, el fabricante indica el uso de capacitores de desacople en el circuito de alimentación: 0,1 µF para VDD y REGOUT, y 10 nF para VDDIO.
 
 #figure(
-  image("images/alimentacion.png", width: 60%),
+  image("../../imagenes/alimentacion.png", width: 60%),
   caption: [Circuito de alimentación sugerido por el fabricante.],
   kind: image,
 ) <fig-alimentacion>
@@ -131,7 +131,7 @@ El software del proyecto estará compuesto por diferentes procesos:
 )
 
 #figure(
-  image("images/diagrama_de_flujo.png", width: 80%),
+  image("../../imagenes/diagrama_de_flujo.png", width: 80%),
   caption: [Diagrama de flujo previsto para el desarrollo de software. A la izquierda el diagrama del microcontrolador. A la derecha el de la interfaz web.],
   kind: image,
 ) <diagrama-flujo>
@@ -152,7 +152,7 @@ En la @fig-mockup-interfaz se presenta un mockup preliminar de la interfaz propu
 
 #figure(
   image(
-    "images/mockup.png",
+    "../../imagenes/boceto_interfaz.png",
     width: 100%,
   ),
   caption: [

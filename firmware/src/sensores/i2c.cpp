@@ -10,11 +10,10 @@
 void i2c_init(void){
     Wire.begin(I2C_SDA , I2C_SCL);
     Wire.setClock(I2C_FREQ);
+    Wire.setTimeOut(10); // Evitar bloqueos prolongados ante fallos de bus.
 }
 
-int i2c_escribir_registro(uint8_t direccion ,
-                         uint8_t registro ,
-                         uint8_t valor){
+int i2c_escribir_registro(uint8_t direccion , uint8_t registro , uint8_t valor){
 
     Wire.beginTransmission(direccion);
     Wire.write(registro);
@@ -23,10 +22,7 @@ int i2c_escribir_registro(uint8_t direccion ,
     return Wire.endTransmission() == 0 ? 0 : -1;
 }
 
-int i2c_leer_registros(uint8_t direccion ,
-                       uint8_t registro ,
-                       uint8_t* buffer ,
-                       size_t longitud){
+int i2c_leer_registros(uint8_t direccion , uint8_t registro , uint8_t* buffer , size_t longitud){
 
     if (buffer == nullptr || longitud == 0 ||
         longitud > 32){

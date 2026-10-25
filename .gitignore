@@ -1,0 +1,11 @@
+.DS_Store
+Thumbs.db
+.pio/
+build/
+node_modules/
+.venv/
+__pycache__/
+*.py[cod]
+.env
+.env.local
+

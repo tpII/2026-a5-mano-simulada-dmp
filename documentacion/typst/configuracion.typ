@@ -75,7 +75,7 @@ set page(
 )
 // Logo cabecera
 align(top + center)[
-  #image("images/logo_INFO-UNLP.png", width: 13cm)
+  #image("../imagenes/logo_info_unlp.png", width: 13cm)
 ]
 // Espacio flexible que empuja el texto del centro
 v(0.3fr)

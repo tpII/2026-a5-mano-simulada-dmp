@@ -1,233 +1,408 @@
+/*
+ * firmware -  Mano simulada DMP (ESP32)
+ *
+ * Qué hace, en una línea:
+ *   lee el MPU6050 (con su DMP) y el magnetómetro QMC5883L, calcula la orientación
+ *   de dos formas (DMP y filtro por software) y se las manda por Wi-Fi a la página web.
+ *
+ *
+ * Conexiones (las mismas del informe E2):
+ *   SDA -> GPIO21   SCL -> GPIO22   MPU6050 INT -> GPIO23   VCC -> 3V3   GND -> GND
+ *   El QMC5883L comparte SDA y SCL con el MPU6050.
+ *
+ * Partes de este archivo:
+ *   1. Configuración        6. MPU6050 y DMP
+ *   2. Variables            7. Wi-Fi y WebSocket
+ *   3. Matemática básica    8. setup()
+ *   4. Magnetómetro         9. loop()
+ *   5. Filtros
+ */
+
 #include <Arduino.h>
-#include <math.h>
-#include <esp_timer.h>
-#include <esp_random.h>
-#include "src/sensores/i2c.h"
-#include "src/sensores/mpu6050.h"
-#include "src/sensores/qmc5883l.h"
-#include "src/filtros/filtro_complementario.h"
-#include "src/comunicacion/telemetria.h"
+#include <Wire.h>
+#include <WiFi.h>
+#include <WebSocketsServer.h>
+#include "I2Cdev.h"
+#include "MPU6050_6Axis_MotionApps20.h"   // trae el firmware del DMP
 
-// El GPIO despierta la lectura; INT_STATUS confirma DATA_READY.
-static const uint8_t PIN_INT = 23;
-static const bool EMITIR_JSON = true; // Contrato v1, NDJSON por USB.
-static const bool EMITIR_CSV = false; // Solo diagnostico antiguo: desactivar JSON antes.
-static_assert(!(EMITIR_JSON && EMITIR_CSV), "Seleccionar un solo formato de datos");
-static const uint32_t BAUDIOS = EMITIR_JSON ? 460800 : 115200;
-static const bool USAR_FILTRO = true; // false: diagnostico de sensores sin fusion.
-static const uint32_t EDAD_MAG_MAX_US = 100000;
-static portMUX_TYPE cerrojo = portMUX_INITIALIZER_UNLOCKED;
-static volatile uint32_t pendientes = 0, secuencia = 0, ultimoIrqUs = 0;
-static volatile uint32_t irqVentana = 0, dtMinUs = UINT32_MAX, dtMaxUs = 0, nIntervalos = 0;
-static volatile uint64_t sumaIntervalosUs = 0;
-static volatile bool primerIrq = true;
+ // ======================================================================
+ // 1. CONFIGURACIÓN  (lo que probablemente quieras tocar está acá)
+ // ======================================================================
+static const int      PIN_SDA = 21;
+static const int      PIN_SCL = 22;
+static const int      PIN_INT = 23;          // el MPU avisa por acá "hay un paquete nuevo"
+static const uint8_t  QMC_ADDR = 0x0D;       // dirección I2C del magnetómetro
 
-struct Contadores {
-    uint32_t mpu = 0, mag = 0, csv = 0, agrupadas = 0, sinDrdy = 0;
-    uint32_t json = 0, descartesTx = 0, erroresFormato = 0;
-    uint32_t errorMpu = 0, errorMag = 0, saturadas = 0, dor = 0, saltos = 0;
-    uint32_t latenciaMaxUs = 0, lecturaMaxUs = 0;
-    uint32_t intervaloMinUs = UINT32_MAX, intervaloMaxUs = 0, intervalos = 0;
-    uint64_t sumaIntervalosUs = 0;
-};
-static Contadores cuenta;
-static uint32_t inicioVentanaUs = 0, anteriorMpuUs = 0, ultimoMagUs = 0, sondeoMagUs = 0;
-static bool filtroListo = false, hayMag = false, magPendiente = false;
-static mag_datos_t magnetico = {};
-static Orientacion orientacion = {};
-static char sesion[17] = {};
-static uint32_t numeroMuestra = 0; // Muestras validas, nunca flancos GPIO.
-static uint64_t tiempoMagUs = 0;
+static const char* WIFI_SSID = "ManoDMP"; // nombre de la red que crea el ESP32
+static const char* WIFI_PASS = "mano1234";// mínimo 8 caracteres
+static const uint16_t PUERTO_WS = 81;        // la página se conecta a ws://192.168.4.1:81
 
-void IRAM_ATTR isrMpu() {
-    const uint32_t t = micros();
-    portENTER_CRITICAL_ISR(&cerrojo);
-    if (!primerIrq) {
-        const uint32_t dt = t - ultimoIrqUs;
-        if (dt < dtMinUs) dtMinUs = dt;
-        if (dt > dtMaxUs) dtMaxUs = dt;
-        sumaIntervalosUs += dt;
-        nIntervalos++;
-    }
-    primerIrq = false;
-    ultimoIrqUs = t;
-    secuencia++;
-    pendientes++;
-    irqVentana++;
-    portEXIT_CRITICAL_ISR(&cerrojo);
+// El DMP entrega paquetes a ~100 Hz. Al navegador mandamos 1 de cada DIVISOR_ENVIO:
+// 100 Hz / 2 = 50 Hz, que es la frecuencia objetivo del proyecto.
+// (El filtro igual corre con TODOS los paquetes, así integra mejor.)
+static const uint8_t  DIVISOR_ENVIO = 2;
+
+// Peso del giroscopio en el filtro complementario. 0.98 = "98% giroscopio, 2% referencia".
+static const float    ALPHA = 0.98f;
+
+// Calibración del magnetómetro (hard-iron). Hoy en cero: falta hacer la calibración
+// (idea: un script en /herramientas que mida el mínimo y máximo de cada eje girando el guante).
+static const float    MAG_OFFSET[3] = {0.0f, 0.0f, 0.0f};
+
+// ======================================================================
+// 2. VARIABLES
+// ======================================================================
+MPU6050 mpu;
+WebSocketsServer ws(PUERTO_WS);
+
+// Qué algoritmo usa la "mano software". Se cambia desde la página.
+enum Modo{ MODO_COMP , MODO_MAG , MODO_KALMAN };
+Modo modo = MODO_COMP;
+// COMP = complementario (acelerómetro + giroscopio)   MAG = complementario + magnetómetro
+
+// DMP
+uint8_t fifoBuffer[64];                  // acá llega cada paquete del DMP
+volatile bool paqueteListo = false;      // la interrupción lo pone en true
+bool dmpListo = false;
+float sensGiro = 16.4f;                  // cuentas por (°/s)  (se recalcula al iniciar)
+float sensAcel = 16384.0f;               // cuentas por g      (se recalcula al iniciar)
+
+// Último dato del magnetómetro (si una lectura falla, se reutiliza el anterior)
+float magX = 0 , magY = 0 , magZ = 0;
+
+// Estado del filtro (ángulos en radianes)
+float fRoll = 0 , fPitch = 0;
+float fYawComp = 0;                      // yaw integrando solo el giroscopio (deriva)
+float fYawMag = 0;                      // yaw corregido con el magnetómetro
+bool  filtroIniciado = false;
+
+// Control
+bool transmitiendo = true;               // la página puede pausar el envío
+bool pedirCalibracion = false;
+uint32_t ultimoUs = 0;                   // para calcular dt entre paquetes
+uint32_t contadorPaquetes = 0;           // paquetes del DMP procesados
+uint32_t contadorEnvio = 0;              // mensajes enviados (la página lo usa para detectar saltos)
+
+// ======================================================================
+// 3. MATEMÁTICA BÁSICA
+// ======================================================================
+
+// Lleva un ángulo al rango [-PI, PI] para que no "salte" al pasar de 180° a -180°.
+static float normalizarAngulo(float a){
+  while (a > PI) a -= 2.0f * PI;
+  while (a < -PI) a += 2.0f * PI;
+  return a;
 }
 
-static void detener(const char* mensaje) {
-    Serial.println(mensaje);
-    while (true) delay(1000);
+// Convierte roll, pitch, yaw (radianes) a cuaternión [w, x, y, z].
+// La página trabaja con cuaterniones porque comparar dos orientaciones es más fácil así.
+static void cuatDesdeEuler(float r , float p , float y , float q[4]){
+  float cr = cosf(r / 2) , sr = sinf(r / 2);
+  float cp = cosf(p / 2) , sp = sinf(p / 2);
+  float cy = cosf(y / 2) , sy = sinf(y / 2);
+  q[0] = cr * cp * cy + sr * sp * sy;
+  q[1] = sr * cp * cy - cr * sp * sy;
+  q[2] = cr * sp * cy + sr * cp * sy;
+  q[3] = cr * cp * sy - sr * sp * cy;
 }
 
-void setup() {
-    // Encolar los resúmenes evita esperar su transmision (~30 ms a 115200).
-    // Debe configurarse antes de begin() en ESP32 Arduino.
-    const size_t capacidadTx = Serial.setTxBufferSize(2048);
-    Serial.begin(BAUDIOS);
-    delay(350);
-    Serial.println("# A5 diagnostico adquisicion MPU6050 + QMC5883L");
-    Serial.printf("# UART TX buffer=%u bytes; %lu baudios\n", (unsigned)capacidadTx, (unsigned long)BAUDIOS);
-    snprintf(sesion,sizeof(sesion),"%08lx%08lx",(unsigned long)esp_random(),(unsigned long)esp_random());
-    Serial.printf("# telemetria version=1 sesion=%s formato=%s\n",sesion,EMITIR_JSON?"ndjson":"diagnostico");
-    Serial.println("# AVISO calibracion provisional: bias fijo y offsets magneticos cero; no valida orientacion");
-    i2c_init();
-    delay(100);
-    if (mpu_init() != 0) detener("# ERROR inicializacion MPU; revisar WHO_AM_I, cableado y registros");
-    if (mag_init() != 0) detener("# ERROR inicializacion QMC; revisar direccion 0x0D, cableado y registros");
-    if (EMITIR_CSV) Serial.println("# CSV: t_us,ax,ay,az,gx,gy,gz,roll,pitch,yaw,mx,my,mz,secuencia,mag_nuevo,mag_valido,edad_mag_us");
-    Serial.println("# Unidades: us,m/s2,rad/s,rad,LSB; nan=sin dato valido; edad=-1=sin muestra");
-    Serial.printf("# modo JSON=%u CSV=%u filtro=%u; JSON tiempo_us=64 bits; numero=muestras; CSV secuencia=IRQ crudas\n",
-                  EMITIR_JSON, EMITIR_CSV, USAR_FILTRO);
-    pinMode(PIN_INT, INPUT_PULLDOWN); // Evitar entrada flotante si falta el cable INT.
-    attachInterrupt(digitalPinToInterrupt(PIN_INT), isrMpu, RISING);
-    inicioVentanaUs = micros();
-    if (mpu_habilitar_interrupcion() != 0) detener("# ERROR habilitando DATA_READY");
+// ======================================================================
+// 4. MAGNETÓMETRO QMC5883L
+// ======================================================================
+
+// Si al girar el guante el rumbo sale invertido o corrido, se arregla acá:
+// el magnetómetro puede estar montado con sus ejes distintos a los del MPU6050.
+// Ejemplos:  x = -x;   (invertir un eje)     std::swap(x, y);   (intercambiar ejes)
+static void alinearMag(float& x , float& y , float& z){
+  // Hoy: sin cambios. Falta verificar con el guante armado.
 }
 
-static void sondearMagnetometro() {
-    const uint32_t ahora = micros();
-    if ((uint32_t)(ahora - sondeoMagUs) < 2000) return;
-    sondeoMagUs = ahora;
-    mag_datos_t nueva = {};
-    uint8_t estado = 0;
-    const int resultado = mag_leer(&nueva, &estado);
-    if (estado & 0x04) cuenta.dor++; // Indica al menos una perdida, no cuantas.
-    if (resultado == MAG_OK) {
-        magnetico = nueva;
-        ultimoMagUs = micros();
-        tiempoMagUs = (uint64_t)esp_timer_get_time();
-        hayMag = true;
-        magPendiente = true;
-        cuenta.mag++;
-    } else if (resultado == MAG_ERROR_I2C || resultado == MAG_SATURADO) {
-        if (resultado == MAG_ERROR_I2C) cuenta.errorMag++;
-        else cuenta.saturadas++;
-        hayMag = false;
-        magPendiente = false;
-    }
+static bool magIniciar(){
+  Wire.beginTransmission(QMC_ADDR);
+  Wire.write(0x0B); Wire.write(0x01);          // período de set/reset recomendado por el fabricante
+  if (Wire.endTransmission() != 0) return false;
+  Wire.beginTransmission(QMC_ADDR);
+  Wire.write(0x09); Wire.write(0x19);          // sobremuestreo 512, rango ±8 G, 100 Hz, modo continuo
+  return Wire.endTransmission() == 0;
 }
 
-static void adquirirMpu() {
-    uint32_t eventos, t, numero;
-    portENTER_CRITICAL(&cerrojo);
-    eventos = pendientes;
-    pendientes = 0;
-    t = ultimoIrqUs;
-    numero = secuencia;
-    portEXIT_CRITICAL(&cerrojo);
-    if (!eventos) return;
-    cuenta.agrupadas += eventos - 1; // Flancos agrupados no equivalen a muestras perdidas.
-    const uint64_t tiempoLecturaUs = (uint64_t)esp_timer_get_time();
-    const uint32_t comienzo = (uint32_t)tiempoLecturaUs;
-    const uint32_t latencia = comienzo - t;
-    if (latencia > cuenta.latenciaMaxUs) cuenta.latenciaMaxUs = latencia;
-    mpu_datos_t d = {};
-    const int resultado = mpu_leer(&d);
-    const uint32_t duracion = micros() - comienzo;
-    if (duracion > cuenta.lecturaMaxUs) cuenta.lecturaMaxUs = duracion;
-    if (resultado == MPU_SIN_MUESTRA) { cuenta.sinDrdy++; return; }
-    if (resultado != MPU_OK) { cuenta.errorMpu++; return; }
-    // La rafaga conserva mediciones coherentes. No descartar por nuevos
-    // flancos GPIO: el registro, no esos flancos, valida la muestra.
-    t = comienzo;
-    if (filtroListo || anteriorMpuUs != 0) {
-        const uint32_t dt = t - anteriorMpuUs;
-        if (dt < cuenta.intervaloMinUs) cuenta.intervaloMinUs = dt;
-        if (dt > cuenta.intervaloMaxUs) cuenta.intervaloMaxUs = dt;
-        cuenta.sumaIntervalosUs += dt;
-        cuenta.intervalos++;
-    }
-    cuenta.mpu++;
-    const uint32_t muestraActual = numeroMuestra++;
-    const uint32_t edad = micros() - ultimoMagUs;
-    const bool valido = hayMag && edad <= EDAD_MAG_MAX_US;
-    const bool nuevo = valido && magPendiente;
-    if (USAR_FILTRO) {
-        if (!filtroListo) {
-            filtro_iniciar(d, magnetico, valido);
-            filtroListo = true;
-            // Obtener el estado inicial por la misma API, sin integrar tiempo.
-            orientacion = filtro_actualizar(d, magnetico, 0.0f, false);
-        } else {
-            const float dt = (uint32_t)(t - anteriorMpuUs) / 1000000.0f;
-            if (dt > 0.0f && dt < 0.2f)
-                orientacion = filtro_actualizar(d, magnetico, dt, nuevo);
-            else {
-                cuenta.saltos++;
-                filtro_iniciar(d, magnetico, valido);
-                orientacion = filtro_actualizar(d, magnetico, 0.0f, false);
-            }
-        }
-    } else orientacion = {NAN, NAN, NAN};
-    anteriorMpuUs = t;
-    magPendiente = false;
-    if (EMITIR_JSON) {
-        MuestraTelemetria mensaje;
-        mensaje.sesion=sesion; mensaje.numero=muestraActual; mensaje.tiempo_us=tiempoLecturaUs;
-        mensaje.mpu=d; mensaje.mag=magnetico; mensaje.tiempo_mag_us=tiempoMagUs;
-        mensaje.mag_valido=valido; mensaje.mag_nuevo=nuevo;
-        mensaje.software.valida=USAR_FILTRO && telemetria_cuaternion(orientacion,mensaje.software.cuaternion);
-        mensaje.software.tiempo_us=tiempoLecturaUs;
-        mensaje.filtro_activo=USAR_FILTRO;
-        // DMP no integrado: ruta ausente, no se inventa una segunda orientacion.
-        char linea[1536]; size_t longitud=0;
-        if (!telemetria_codificar(mensaje,linea,sizeof(linea),&longitud)) cuenta.erroresFormato++;
-        else if (Serial.availableForWrite() < (int)longitud) cuenta.descartesTx++;
-        else { Serial.write((const uint8_t*)linea,longitud); cuenta.json++; }
-    }
-    if (EMITIR_CSV) {
-        Serial.printf("%lu,%.4f,%.4f,%.4f,%.5f,%.5f,%.5f,%.6f,%.6f,%.6f,%.1f,%.1f,%.1f,%lu,%u,%u,%ld\n",
-            (unsigned long)t, d.ax, d.ay, d.az, d.gx, d.gy, d.gz,
-            orientacion.roll, orientacion.pitch, orientacion.yaw,
-            valido ? magnetico.mx : NAN, valido ? magnetico.my : NAN, valido ? magnetico.mz : NAN,
-            (unsigned long)numero, nuevo, valido, hayMag ? (long)edad : -1L);
-        cuenta.csv++;
-    }
+// Lee X, Y, Z (cuentas crudas). Devuelve false si el sensor no respondió.
+static bool magLeer(){
+  Wire.beginTransmission(QMC_ADDR);
+  Wire.write(0x00);                            // primer registro de datos
+  if (Wire.endTransmission(false) != 0) return false;
+  if (Wire.requestFrom((uint16_t) QMC_ADDR , (size_t) 6 , true) != 6) return false;
+  uint8_t b[6];
+  for (int i = 0; i < 6; i++) b[i] = Wire.read();
+  // Cada eje son 2 bytes, primero el menos significativo (little-endian).
+  float x = (int16_t) ((b[1] << 8) | b[0]) - MAG_OFFSET[0];
+  float y = (int16_t) ((b[3] << 8) | b[2]) - MAG_OFFSET[1];
+  float z = (int16_t) ((b[5] << 8) | b[4]) - MAG_OFFSET[2];
+  alinearMag(x , y , z);
+  magX = x; magY = y; magZ = z;
+  return true;
 }
 
-static void informar() {
-    if ((uint32_t)(micros() - inicioVentanaUs) < 5000000) return;
-    uint32_t ahora, eventos, minimo, maximo, intervalos;
-    uint64_t suma;
-    portENTER_CRITICAL(&cerrojo);
-    ahora = micros();
-    eventos = irqVentana;
-    minimo = dtMinUs;
-    maximo = dtMaxUs;
-    intervalos = nIntervalos;
-    suma = sumaIntervalosUs;
-    irqVentana = 0; dtMinUs = UINT32_MAX; dtMaxUs = 0; nIntervalos = 0; sumaIntervalosUs = 0;
-    portEXIT_CRITICAL(&cerrojo);
-    const float segundos = (uint32_t)(ahora - inicioVentanaUs) / 1000000.0f;
-    inicioVentanaUs = ahora;
-    Serial.printf("# frecuencia ventana_s=%.3f irq_hz=%.2f mpu_hz=%.2f mag_hz=%.2f csv_hz=%.2f "
-                  "dt_irq_us=%.1f/%lu/%lu irq_agrupadas=%lu sin_drdy=%lu error_mpu=%lu error_mag=%lu "
-                  "ovl=%lu dor=%lu saltos=%lu latencia_max_us=%lu lectura_mpu_max_us=%lu "
-                  "json_hz=%.2f descartes_tx=%lu errores_formato=%lu\n",
-        segundos, eventos/segundos, cuenta.mpu/segundos, cuenta.mag/segundos, cuenta.csv/segundos,
-        intervalos ? (double)suma/intervalos : 0.0, (unsigned long)(intervalos ? minimo : 0),
-        (unsigned long)maximo, (unsigned long)cuenta.agrupadas, (unsigned long)cuenta.sinDrdy,
-        (unsigned long)cuenta.errorMpu, (unsigned long)cuenta.errorMag, (unsigned long)cuenta.saturadas,
-        (unsigned long)cuenta.dor, (unsigned long)cuenta.saltos, (unsigned long)cuenta.latenciaMaxUs,
-        (unsigned long)cuenta.lecturaMaxUs,cuenta.json/segundos,
-        (unsigned long)cuenta.descartesTx,(unsigned long)cuenta.erroresFormato);
-    Serial.printf("# muestras_mpu dt_us=%.1f/%lu/%lu (medio/min/max); GPIO es diagnostico, DATA_READY valida las muestras\n",
-        cuenta.intervalos ? (double)cuenta.sumaIntervalosUs/cuenta.intervalos : 0.0,
-        (unsigned long)(cuenta.intervalos ? cuenta.intervaloMinUs : 0),
-        (unsigned long)cuenta.intervaloMaxUs);
-    if (eventos > cuenta.mpu * 2 + 5) {
-        Serial.println("# AVISO exceso de flancos GPIO: revisar INT MPU -> GPIO23 y masa comun; no equivalen a muestras");
-    }
-    cuenta = {};
+// Rumbo (yaw) según el magnetómetro, "enderezando" el vector con el roll y pitch actuales.
+static float yawDesdeMag(float roll , float pitch){
+  float cr = cosf(roll) , sr = sinf(roll) , cp = cosf(pitch) , sp = sinf(pitch);
+  float xh = magX * cp + sp * (sr * magY + cr * magZ);
+  float yh = cr * magY - sr * magZ;
+  return atan2f(-yh , xh);
 }
 
-void loop() {
-    // Atender primero el MPU; el QMC tiene reloj propio y se sondea aparte.
-    adquirirMpu();
-    sondearMagnetometro();
-    informar();
-    delay(1);
+// ======================================================================
+// 5. FILTROS  (estimación "por software", sin usar nada del DMP)
+// ======================================================================
+
+// Primera muestra: parte de una orientación coherente con la posición real del sensor.
+static void filtroIniciar(float ax , float ay , float az){
+  fRoll = atan2f(ay , az);
+  fPitch = atan2f(-ax , sqrtf(ay * ay + az * az));
+  fYawMag = yawDesdeMag(fRoll , fPitch);
+  fYawComp = fYawMag;
+}
+
+// Filtro complementario. Se llama en cada paquete.
+//   ax,ay,az: aceleración (en g)   gx,gy,gz: velocidad angular (rad/s)   dt: segundos
+static void filtroComplementario(float ax , float ay , float az ,
+                                 float gx , float gy , float gz , float dt){
+  // Roll y pitch: giroscopio (rápido pero deriva) + acelerómetro (lento pero estable).
+  float rollAcc = atan2f(ay , az);
+  float pitchAcc = atan2f(-ax , sqrtf(ay * ay + az * az));
+  fRoll = ALPHA * (fRoll + gx * dt) + (1.0f - ALPHA) * rollAcc;
+  fPitch = ALPHA * (fPitch + gy * dt) + (1.0f - ALPHA) * pitchAcc;
+
+  // Yaw modo COMP: solo giroscopio. Nada lo corrige, así que va a derivar (es lo esperado).
+  fYawComp = normalizarAngulo(fYawComp + gz * dt);
+
+  // Yaw modo MAG: giroscopio corregido con el rumbo del magnetómetro.
+  // Se corrige la DIFERENCIA (normalizada) para evitar saltos en ±180°.
+  float yawGiro = fYawMag + gz * dt;
+  float dif = normalizarAngulo(yawDesdeMag(fRoll , fPitch) - yawGiro);
+  fYawMag = normalizarAngulo(yawGiro + (1.0f - ALPHA) * dif);
+
+  // Mejoras posibles más adelante:
+  //  - ignorar el acelerómetro cuando |a| se aleja de 1 g (el guante se está moviendo fuerte)
+  //  - integrar con la cinemática real de Euler en vez de eje por eje
+}
+
+// ---------- ESPACIO RESERVADO PARA EL FILTRO DE KALMAN ----------
+// Cuando exista: poner kalmanDisponible() en true, completar kalmanActualizar() y
+// elegirEstimacion() ya sabe usarlo. Mientras tanto la página lo muestra deshabilitado.
+static bool kalmanDisponible(){ return false; }
+static void kalmanActualizar(float ax , float ay , float az ,
+                             float gx , float gy , float gz , float dt){
+  // TODO
+}
+static void kalmanEstimacion(float& r , float& p , float& y){
+  // TODO: devolver el roll, pitch y yaw estimados por Kalman
+  r = fRoll; p = fPitch; y = fYawMag;
+}
+// ----------------------------------------------------------------
+
+// Devuelve la estimación que corresponde al modo elegido en la página.
+static void elegirEstimacion(float& r , float& p , float& y , const char*& nombre){
+  r = fRoll; p = fPitch;
+  switch (modo){
+  case MODO_COMP:   y = fYawComp; nombre = "comp";   break;
+  case MODO_MAG:    y = fYawMag;  nombre = "mag";    break;
+  case MODO_KALMAN: kalmanEstimacion(r , p , y); nombre = "kalman"; break;
+  }
+}
+
+// ======================================================================
+// 6. MPU6050 Y DMP
+// ======================================================================
+
+// Interrupción: se ejecuta cuando el MPU avisa que hay un paquete nuevo.
+// Es mejor hacer lo mínimo acá: solo levantar una bandera. El trabajo real va en loop().
+static void IRAM_ATTR isrDmp(){ paqueteListo = true; }
+
+// Calibra offsets de acelerómetro y giroscopio. El guante debe estar QUIETO.
+// Como esto corrige los registros del propio sensor, NO hace falta restar un
+// "bias" del giroscopio por software (se estaría corrigiendo dos veces).
+static void calibrarSensor(){
+  mpu.CalibrateAccel(6);
+  mpu.CalibrateGyro(6);
+}
+
+static bool dmpIniciar(){
+  mpu.initialize();
+  if (!mpu.testConnection()){ Serial.println("MPU6050 no responde (revisar cables)."); return false; }
+
+  uint8_t estado = mpu.dmpInitialize();        // carga el firmware del DMP en el sensor
+  if (estado != 0){ Serial.printf("dmpInitialize fallo, codigo %u\n" , estado); return false; }
+
+  // Offsets iniciales (los mismos del E2) y calibración automática.
+  mpu.setXAccelOffset(-1000); mpu.setYAccelOffset(-1000); mpu.setZAccelOffset(1000);
+  mpu.setXGyroOffset(0);      mpu.setYGyroOffset(0);      mpu.setZGyroOffset(0);
+  calibrarSensor();
+
+  mpu.setDMPEnabled(true);
+  pinMode(PIN_INT , INPUT);
+  attachInterrupt(digitalPinToInterrupt(PIN_INT) , isrDmp , RISING);
+  mpu.getIntStatus();
+
+  // Las lecturas crudas dependen del rango configurado: lo leemos en vez de suponerlo.
+  // Giroscopio: 131 cuentas por °/s en ±250, y se divide a la mitad con cada rango más grande.
+  // Acelerómetro: 16384 cuentas por g en ±2 g, mismo criterio.
+  sensGiro = 131.0f / (1 << mpu.getFullScaleGyroRange());
+  sensAcel = 16384.0f / (1 << mpu.getFullScaleAccelRange());
+  return true;
+}
+
+// Pide al sensor que se recalibre (llamado desde loop, nunca desde un evento de red).
+static void recalibrar(){
+  Serial.println("Recalibrando: no mover el guante...");
+  mpu.setDMPEnabled(false);
+  calibrarSensor();
+  mpu.resetFIFO();
+  mpu.setDMPEnabled(true);
+  filtroIniciado = false;                      // el filtro vuelve a arrancar desde cero
+}
+
+// ======================================================================
+// 7. WI-FI Y WEBSOCKET
+// ======================================================================
+//
+// ¿Por qué WebSocket? Una página web NO puede recibir UDP ni abrir sockets "crudos"
+// por seguridad del navegador. Lo que sí permite es un WebSocket: una conexión que se
+// abre una vez y queda abierta, por la que el ESP32 va "empujando" mensajes de texto.
+// Es como una llamada abierta en vez de mandar una carta (pedido HTTP) por cada dato.
+
+// Manda un mensaje de error a la página (aparece en el panel de Conexión).
+static void enviarError(const char* msg){
+  char buf[96];
+  int n = snprintf(buf , sizeof(buf) , "{\"err\":\"%s\"}" , msg);
+  ws.broadcastTXT(buf , n);
+}
+
+// Interpreta los comandos que manda la página. Son JSON cortitos, por ejemplo:
+//   {"cmd":"filtro","valor":"mag"}      {"cmd":"iniciar"}
+// Para no depender de otra librería, solo buscamos las palabras clave en el texto.
+static void manejarComando(const char* txt){
+  if (strstr(txt , "\"iniciar\""))   transmitiendo = true;
+  else if (strstr(txt , "\"detener\""))   transmitiendo = false;
+  else if (strstr(txt , "\"calibrar\""))  pedirCalibracion = true;   // se hace en loop()
+  else if (strstr(txt , "\"filtro\"")){
+    if (strstr(txt , "\"comp\""))    modo = MODO_COMP;
+    else if (strstr(txt , "\"mag\""))     modo = MODO_MAG;
+    else if (strstr(txt , "\"kalman\"")){
+      if (kalmanDisponible()) modo = MODO_KALMAN;
+      else enviarError("Kalman todavia no esta implementado");
+    }
+  }
+}
+
+// Se llama cada vez que pasa algo con un cliente (se conecta, se va, manda un texto).
+static void eventoWs(uint8_t num , WStype_t tipo , uint8_t* payload , size_t largo){
+  switch (tipo){
+  case WStype_CONNECTED:    Serial.printf("Cliente %u conectado\n" , num); break;
+  case WStype_DISCONNECTED: Serial.printf("Cliente %u desconectado\n" , num); break;
+  case WStype_TEXT:
+  {
+    char tmp[80];
+    size_t n = largo < sizeof(tmp) - 1 ? largo : sizeof(tmp) - 1;
+    memcpy(tmp , payload , n); tmp[n] = 0;     // copia terminada en 0 para poder buscar texto
+    manejarComando(tmp);
+    break;
+  }
+  default: break;
+  }
+}
+
+static void wifiIniciar(){
+  WiFi.mode(WIFI_AP);                          // el ESP32 crea su propia red (Access Point)
+  WiFi.softAP(WIFI_SSID , WIFI_PASS);
+  WiFi.setSleep(false);                        // menos latencia
+  Serial.print("Red Wi-Fi: "); Serial.print(WIFI_SSID);
+  Serial.print("   IP: ");     Serial.println(WiFi.softAPIP());   // normalmente 192.168.4.1
+  ws.begin();
+  ws.onEvent(eventoWs);
+}
+
+// Arma y envía un mensaje con las dos orientaciones. Formato (ver web/README.md):
+//   {"n":12,"t":3400,"f":"comp","dmp":[w,x,y,z],"sw":[w,x,y,z]}
+static void enviarMuestra(const Quaternion& qDmp){
+  if (!transmitiendo || ws.connectedClients() == 0) return;   // nadie escuchando: no gastar tiempo
+
+  float r , p , y; const char* nombre;
+  elegirEstimacion(r , p , y , nombre);
+  float s[4];
+  cuatDesdeEuler(r , p , y , s);                  // la estimación por software, como cuaternión
+
+  char buf[200];
+  int n = snprintf(buf , sizeof(buf) ,
+    "{\"n\":%lu,\"t\":%lu,\"f\":\"%s\",\"dmp\":[%.5f,%.5f,%.5f,%.5f],\"sw\":[%.5f,%.5f,%.5f,%.5f]}" ,
+    (unsigned long) contadorEnvio++ , (unsigned long) millis() , nombre ,
+    qDmp.w , qDmp.x , qDmp.y , qDmp.z , s[0] , s[1] , s[2] , s[3]);
+  ws.broadcastTXT(buf , n);
+}
+
+// ======================================================================
+// 8. SETUP
+// ======================================================================
+void setup(){
+  Serial.begin(115200);
+  Wire.begin(PIN_SDA , PIN_SCL);
+  Wire.setClock(400000);                       // 400 kHz: necesario para leer rápido la FIFO
+
+  if (!magIniciar()) Serial.println("Magnetometro QMC5883L no responde (revisar cables).");
+
+  Serial.println("Iniciando DMP. No mover el guante (calibracion)...");
+  dmpListo = dmpIniciar();
+  Serial.println(dmpListo ? "DMP listo." : "DMP NO se pudo iniciar.");
+
+  wifiIniciar();
+}
+
+// ======================================================================
+// 9. LOOP
+// ======================================================================
+
+// Procesa un paquete del DMP: lee datos, actualiza el filtro y (cada tanto) envía.
+static void procesarPaquete(){
+  // 1) Orientación del DMP (ruta A)
+  Quaternion q;
+  mpu.dmpGetQuaternion(&q , fifoBuffer);
+
+  // 2) Datos crudos del mismo instante (ruta B): acelerómetro y giroscopio...
+  int16_t axr , ayr , azr , gxr , gyr , gzr;
+  mpu.getMotion6(&axr , &ayr , &azr , &gxr , &gyr , &gzr);
+  float ax = axr / sensAcel , ay = ayr / sensAcel , az = azr / sensAcel;            // en g
+  const float aRad = (PI / 180.0f) / sensGiro;                                    // cuentas -> rad/s
+  float gx = gxr * aRad , gy = gyr * aRad , gz = gzr * aRad;
+  magLeer();                                                                      // ...y magnetómetro
+
+  // 3) Tiempo desde el paquete anterior (el filtro lo necesita para integrar)
+  uint32_t ahora = micros();
+  float dt = (ahora - ultimoUs) * 1e-6f;
+  ultimoUs = ahora;
+
+  if (!filtroIniciado){ filtroIniciar(ax , ay , az); filtroIniciado = true; return; }
+  if (dt <= 0.0f || dt > 0.1f) return;         // dt raro (pausa larga): descartar
+
+  // 4) Filtros
+  filtroComplementario(ax , ay , az , gx , gy , gz , dt);
+  if (kalmanDisponible()) kalmanActualizar(ax , ay , az , gx , gy , gz , dt);
+
+  // 5) Enviar a la página (1 de cada DIVISOR_ENVIO paquetes)
+  if (++contadorPaquetes % DIVISOR_ENVIO == 0) enviarMuestra(q);
+}
+
+void loop(){
+  ws.loop();                                   // atiende a los clientes WebSocket (llamar siempre)
+
+  if (pedirCalibracion){ pedirCalibracion = false; recalibrar(); }
+
+  if (!dmpListo){                             // sin DMP no hay nada que enviar: avisar cada 2 s
+    static uint32_t ultimoAviso = 0;
+    if (millis() - ultimoAviso > 2000){ ultimoAviso = millis(); enviarError("DMP no iniciado, revisar cables"); }
+    return;
+  }
+
+  if (!paqueteListo) return;                   // la interrupción todavía no avisó nada
+  paqueteListo = false;
+  if (mpu.dmpGetCurrentFIFOPacket(fifoBuffer)) procesarPaquete();
 }

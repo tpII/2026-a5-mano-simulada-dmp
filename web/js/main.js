@@ -17,9 +17,27 @@ const ctl = new OrbitControls(cam, renderer.domElement);
 ctl.enableDamping = true; ctl.target.set(0, -.2, 0);
 const manos = { dmp: crearMano(PALETAS.dmp), sw: crearMano(PALETAS.sw) };
 const objetivo = { dmp: new THREE.Quaternion(), sw: new THREE.Quaternion() };
+// Ejes del cuerpo de la mano = ejes del sensor (se mueven con la mano):
+//   X (rojo) → meñique · Y (verde) → punta de los dedos · Z (azul) → sale del dorso (lado de las uñas)
+function etiqueta(texto, color) {
+  const c = document.createElement('canvas'); c.width = 256; c.height = 64;
+  const x = c.getContext('2d'); x.font = 'bold 30px system-ui, sans-serif';
+  x.textAlign = 'center'; x.textBaseline = 'middle';
+  x.lineWidth = 7; x.strokeStyle = 'rgba(4,12,26,.95)'; x.strokeText(texto, 128, 32);
+  x.fillStyle = color; x.fillText(texto, 128, 32);
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false, transparent: true }));
+  s.scale.set(1.7, .425, 1); s.renderOrder = 10; return s;
+}
+function ejesCuerpo() {
+  const L = 1.8, g = new THREE.Group(), ax = new THREE.AxesHelper(L);
+  ax.material.depthTest = false; ax.renderOrder = 9; g.add(ax);
+  [['X', '#ff6b6b', [L + .8, 0, 0]], ['Y', '#6bff8a', [0, L + .35, 0]], ['Z', '#6fb0ff', [0, 0, L + .35]]]
+    .forEach(([t, col, p]) => { const e = etiqueta(t, col); e.position.set(...p); g.add(e); });
+  return g;
+}
 [['dmp', -2.4], ['sw', 2.4]].forEach(([k, x]) => {
-  const g = new THREE.Group(); g.position.set(x, -.2, 0); g.add(manos[k]);
-  g.add(new THREE.AxesHelper(2.2)); sc.add(g);
+  const g = new THREE.Group(); g.position.set(x, -.2, 0);
+  manos[k].add(ejesCuerpo()); g.add(manos[k]); sc.add(g);
 });
 const piso = new THREE.GridHelper(14, 28, 0x1d4a70, 0x102c46); piso.position.y = -3; sc.add(piso);
 function vistaInicial() {
@@ -40,7 +58,10 @@ renderer.setAnimationLoop(() => {
 const gr = crearGraficos($('gA'), $('gB'));
 const S = { ref: null, crudo: null, ult: null, rx: [], lastRx: 0, lastN: null, perdidos: 0, total: 0, t0: null, aviso: '', conectado: false };
 const E = { on: false, filas: [], t0: 0, n: 0, media: 0, m2: 0, max: 0 };
-const sensorAThree = q => new THREE.Quaternion(q[1], q[3], -q[2], q[0]); // Z arriba → Y arriba
+// El modelo de la mano usa los mismos ejes que el sensor (X meñique, Y dedos, Z dorso) y la cámara
+// mira el dorso desde +Z. El cuaternión (ya relativo a la referencia) se aplica tal cual: sin permutar
+// ejes ni cambiar signos. Permutarlos haría girar la mano virtual sobre un eje distinto al real.
+const sensorAThree = q => new THREE.Quaternion(q[1], q[2], q[3], q[0]);
 
 function onDato(d) {
   const ahora = performance.now(); S.lastRx = ahora; S.rx.push(ahora); S.total++;
@@ -81,7 +102,8 @@ $('btnCsv').onclick = () => {
   const cab = 'n,t_ms,filtro,dmp_w,dmp_x,dmp_y,dmp_z,sw_w,sw_x,sw_y,sw_z,divergencia_deg';
   const a = Object.assign(document.createElement('a'), {
     href: URL.createObjectURL(new Blob([cab + '\n' + E.filas.join('\n')], { type: 'text/csv' })),
-    download: 'ensayo_' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.csv' });
+    download: 'ensayo_' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.csv'
+  });
   a.click(); URL.revokeObjectURL(a.href);
 };
 $('filtro').onchange = e => { con.filtro(e.target.value); $('filtroNombre').textContent = e.target.selectedOptions[0].text; };

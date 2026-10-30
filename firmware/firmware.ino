@@ -22,6 +22,7 @@
 #include <Wire.h>
 #include <WiFi.h>
 #include <WebSocketsServer.h>
+#include <ESPmDNS.h>                  // permite usar ws://manodmp.local:81 en vez de la IP
 #include "I2Cdev.h"
 #include "MPU6050_6Axis_MotionApps20.h"   // trae el firmware del DMP
 
@@ -33,9 +34,23 @@ static const int      PIN_SCL = 22;
 static const int      PIN_INT = 23;          // el MPU avisa por acá "hay un paquete nuevo"
 static const uint8_t  QMC_ADDR = 0x0D;       // dirección I2C del magnetómetro
 
-static const char* WIFI_SSID = "ManoDMP"; // nombre de la red que crea el ESP32
-static const char* WIFI_PASS = "mano1234";// mínimo 8 caracteres
-static const uint16_t PUERTO_WS = 81;        // la página se conecta a ws://192.168.4.1:81
+// Red propia del ESP32 (Access Point). Queda siempre activa como respaldo.
+static const char* AP_SSID = "ManoDMP";
+static const char* AP_PASS = "mano1234";     // mínimo 8 caracteres
+static const uint16_t PUERTO_WS = 81;        // la página se conecta a ws://<ip>:81
+
+// Tu red Wi-Fi (opcional): así no hace falta cambiar de red en la compu.
+// Los datos se leen de secretos.h (copiá secretos.h.ejemplo). Ese archivo NO se sube al repo.
+// Si no existe, el ESP32 funciona solo con su propia red, como antes.
+#if __has_include("secretos.h")
+  #include "secretos.h"                      // define RED_SSID y RED_CLAVE
+#endif
+#ifndef RED_SSID
+  #define RED_SSID  ""
+  #define RED_CLAVE ""
+#endif
+static const char*    NOMBRE_MDNS    = "manodmp";   // -> ws://manodmp.local:81
+static const uint32_t TIMEOUT_RED_MS = 10000;       // cuánto espera conectarse a tu red
 
 // El DMP entrega paquetes a ~100 Hz. Al navegador mandamos 1 de cada DIVISOR_ENVIO:
 // 100 Hz / 2 = 50 Hz, que es la frecuencia objetivo del proyecto.
@@ -110,11 +125,22 @@ static void cuatDesdeEuler(float r , float p , float y , float q[4]){
 // 4. MAGNETÓMETRO QMC5883L
 // ======================================================================
 
-// Si al girar el guante el rumbo sale invertido o corrido, se arregla acá:
-// el magnetómetro puede estar montado con sus ejes distintos a los del MPU6050.
-// Ejemplos:  x = -x;   (invertir un eje)     std::swap(x, y);   (intercambiar ejes)
+// El módulo del magnetómetro y el MPU6050 están (por ahora) pegados en la protoboard con
+// sus ejes rotados entre sí. Acá se pasa la medida del magnetómetro a los ejes del MPU6050,
+// que son los del guante: X hacia el meñique, Y hacia los dedos, Z saliendo del dorso.
+//
+// Según la serigrafía de las placas, vistas desde arriba y con la misma orientación:
+//   MPU6050 : X → derecha   Y → arriba    Z → hacia vos
+//   Módulo  : X → arriba    Y → izquierda Z → hacia vos
+// Por lo tanto:  X_mpu = -Y_modulo   Y_mpu = +X_modulo   Z_mpu = +Z_modulo
+// OJO: esos ejes son los del HMC5883L impresos en la placa; el chip se lee como QMC5883L (0x0D),
+// así que hay que confirmarlo girando el módulo (ver prueba de yaw). Si no coincide, se corrige acá.
+// Cuando los sensores queden montados con los ejes alineados, esta función queda sin cambios.
 static void alinearMag(float& x , float& y , float& z){
-  // Hoy: sin cambios. Falta verificar con el guante armado.
+  float xm = x , ym = y;   // ejes del módulo (ya con los offsets restados)
+  x = -ym;
+  y =  xm;
+  // z queda igual
 }
 
 static bool magIniciar(){
@@ -313,11 +339,35 @@ static void eventoWs(uint8_t num , WStype_t tipo , uint8_t* payload , size_t lar
 }
 
 static void wifiIniciar(){
-  WiFi.mode(WIFI_AP);                          // el ESP32 crea su propia red (Access Point)
-  WiFi.softAP(WIFI_SSID , WIFI_PASS);
+  bool usarRed = strlen(RED_SSID) > 0;
+  WiFi.mode(usarRed ? WIFI_AP_STA : WIFI_AP);  // AP (red propia) + estación (tu router), o solo AP
+  WiFi.softAP(AP_SSID , AP_PASS);              // siempre queda esta red como respaldo
+
+  if (usarRed){
+    WiFi.begin(RED_SSID , RED_CLAVE);
+    Serial.print("Conectando a "); Serial.print(RED_SSID);
+    uint32_t t0 = millis();
+    while (WiFi.status() != WL_CONNECTED && millis() - t0 < TIMEOUT_RED_MS){
+      delay(250); Serial.print(".");
+    }
+    Serial.println();
+  }
   WiFi.setSleep(false);                        // menos latencia
-  Serial.print("Red Wi-Fi: "); Serial.print(WIFI_SSID);
+
+  Serial.print("Red Wi-Fi: "); Serial.print(AP_SSID);
   Serial.print("   IP: ");     Serial.println(WiFi.softAPIP());   // normalmente 192.168.4.1
+  if (usarRed){
+    if (WiFi.status() == WL_CONNECTED){
+      Serial.print("Conectado a "); Serial.print(RED_SSID);
+      Serial.print("   IP: ");      Serial.println(WiFi.localIP());
+      if (MDNS.begin(NOMBRE_MDNS)){
+        MDNS.addService("ws" , "tcp" , PUERTO_WS);
+        Serial.printf("Tambien disponible en ws://%s.local:%u\n" , NOMBRE_MDNS , PUERTO_WS);
+      }
+    } else {
+      Serial.println("No se pudo conectar a tu red; queda solo la red ManoDMP.");
+    }
+  }
   ws.begin();
   ws.onEvent(eventoWs);
 }

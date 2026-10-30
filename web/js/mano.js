@@ -25,11 +25,14 @@ function material(paleta, grid) {
     vertexShader: VS, fragmentShader: FS,
     uniforms: {
       c1: { value: new THREE.Color(paleta[0]) }, c2: { value: new THREE.Color(paleta[1]) },
-      c3: { value: new THREE.Color(paleta[2]) }, grid: { value: new THREE.Vector2(...grid) } },
+      c3: { value: new THREE.Color(paleta[2]) }, grid: { value: new THREE.Vector2(...grid) }
+    },
   });
 }
 
-// Mano con dedos en postura fija: solo representa la orientación global.
+// Mano DERECHA vista desde el dorso, con los ejes del sensor pegado al dorso:
+//   +X → meñique · +Y → punta de los dedos · +Z → sale del dorso (hacia quien mira).
+// Dedos en postura fija: solo representa la orientación global.
 // Caja con bordes redondeados: empuja cada vértice fuera de una caja interior y recalcula la normal.
 function cajaRedonda(w, h, d, r) {
   const g = new THREE.BoxGeometry(w, h, d, 10, 10, 4), p = g.attributes.position, n = g.attributes.normal;
@@ -57,13 +60,15 @@ export function crearMano(paleta) {
   const dedos = [
     [-.62, .95, 0.03, .17, [.5, .36, .28]], [-.2, .95, 0, .17, [.58, .4, .3]],
     [.22, .95, -.03, .16, [.54, .38, .28]], [.62, .9, -.08, .14, [.42, .3, .24]],
-    [.9, -.35, -.95, .2, [.4, .34, .28]],
+    [-.9, -.35, .95, .2, [.4, .34, .28]],   // pulgar del lado opuesto al meñique (−X)
   ];
   for (const [x, y, ang, r, falanges] of dedos) {
     const base = new THREE.Group(); base.position.set(x, y, 0); base.rotation.z = ang; raiz.add(base);
     let padre = base;
     falanges.forEach((largo, i) => {
       const art = new THREE.Group(); art.rotation.x = i === 0 ? 0.05 : 0.2; padre.add(art);
+
+      // const art = new THREE.Group(); art.rotation.x = i === 0 ? -0.05 : -0.2;   // los dedos se flexionan hacia la palma (−Z), no hacia el dorso padre.add(art);
       add(art, new THREE.CapsuleGeometry(r * (1 - i * .08), largo, 4, 12), [12, 6], new THREE.Vector3(0, largo / 2 + r * .5, 0));
       const sig = new THREE.Group(); sig.position.y = largo + r * 1.3; art.add(sig); padre = sig;
     });

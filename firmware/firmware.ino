@@ -14,7 +14,7 @@
  *   1. Configuración        6. MPU6050 y DMP
  *   2. Variables            7. Wi-Fi y WebSocket
  *   3. Matemática básica    8. setup()
- *   4. Magnetómetro         9. loop()
+ *   4. Magnetómetro(datos y calibracion)         9. loop()
  *   5. Filtros
  */
 
@@ -62,7 +62,16 @@ static const float    ALPHA = 0.98f;
 
 // Calibración del magnetómetro (hard-iron). Hoy en cero: falta hacer la calibración
 // (idea: un script en /herramientas que mida el mínimo y máximo de cada eje girando el guante).
-static const float    MAG_OFFSET[3] = {0.0f, 0.0f, 0.0f};
+// Calibración dinámica del QMC5883L
+float magOffset[3] = {0, 0, 0};
+float magScale[3]  = {1, 1, 1};
+
+float magMin[3] = { 32767,  32767,  32767};
+float magMax[3] = {-32768, -32768, -32768};
+
+bool magCalibrando = false;
+uint32_t magInicioCal = 0;
+const uint32_t MAG_TIEMPO_CAL = 20000; // 20 segundos
 
 // ======================================================================
 // 2. VARIABLES
@@ -136,10 +145,10 @@ static void cuatDesdeEuler(float r , float p , float y , float q[4]){
 // OJO: esos ejes son los del HMC5883L impresos en la placa; el chip se lee como QMC5883L (0x0D),
 // así que hay que confirmarlo girando el módulo (ver prueba de yaw). Si no coincide, se corrige acá.
 // Cuando los sensores queden montados con los ejes alineados, esta función queda sin cambios.
-static void alinearMag(float& x , float& y , float& z){
+static void alinearMag(float& x , float& y , float& z){ /*
   float xm = x , ym = y;   // ejes del módulo (ya con los offsets restados)
   x = -ym;
-  y =  xm;
+  y =  xm;*/
   // z queda igual
 }
 
@@ -153,19 +162,48 @@ static bool magIniciar(){
 }
 
 // Lee X, Y, Z (cuentas crudas). Devuelve false si el sensor no respondió.
-static bool magLeer(){
+static bool magLeer() {
   Wire.beginTransmission(QMC_ADDR);
-  Wire.write(0x00);                            // primer registro de datos
+  Wire.write(0x00);
+
   if (Wire.endTransmission(false) != 0) return false;
-  if (Wire.requestFrom((uint16_t) QMC_ADDR , (size_t) 6 , true) != 6) return false;
+
+  if (Wire.requestFrom((uint16_t)QMC_ADDR, (size_t)6, true) != 6)
+    return false;
+
   uint8_t b[6];
-  for (int i = 0; i < 6; i++) b[i] = Wire.read();
-  // Cada eje son 2 bytes, primero el menos significativo (little-endian).
-  float x = (int16_t) ((b[1] << 8) | b[0]) - MAG_OFFSET[0];
-  float y = (int16_t) ((b[3] << 8) | b[2]) - MAG_OFFSET[1];
-  float z = (int16_t) ((b[5] << 8) | b[4]) - MAG_OFFSET[2];
-  alinearMag(x , y , z);
-  magX = x; magY = y; magZ = z;
+
+  for (int i = 0; i < 6; i++)
+    b[i] = Wire.read();
+
+  // Datos originales
+  float x = (int16_t)((b[1] << 8) | b[0]);
+  float y = (int16_t)((b[3] << 8) | b[2]);
+  float z = (int16_t)((b[5] << 8) | b[4]);
+
+  // Durante la calibracion solo recopilamos extremos
+  if (magCalibrando) {
+    magActualizarCalibracion(x, y, z);
+    return false;
+  }
+
+  // Aplicar offsets
+  x -= magOffset[0];
+  y -= magOffset[1];
+  z -= magOffset[2];
+
+  // Aplicar escalas
+  x *= magScale[0];
+  y *= magScale[1];
+  z *= magScale[2];
+
+  // Alinear ejes con MPU6050
+  alinearMag(x, y, z);
+
+  magX = x;
+  magY = y;
+  magZ = z;
+
   return true;
 }
 
@@ -176,7 +214,65 @@ static float yawDesdeMag(float roll , float pitch){
   float yh = cr * magY - sr * magZ;
   return atan2f(-yh , xh);
 }
+static void magComenzarCalibracion() {
+  for (int i = 0; i < 3; i++) {
+    magMin[i] = 32767;
+    magMax[i] = -32768;
+  }
 
+  magInicioCal = millis();
+  magCalibrando = true;
+
+  Serial.println("\n=== CALIBRACION MAGNETOMETRO ===");
+  Serial.println("Girar el guante lentamente en TODAS las direcciones.");
+  Serial.println("Duracion: 20 segundos.");
+}
+
+static void magFinalizarCalibracion() {
+  magCalibrando = false;
+
+  float radio[3];
+
+  for (int i = 0; i < 3; i++) {
+    magOffset[i] = (magMax[i] + magMin[i]) / 2.0f;
+    radio[i] = (magMax[i] - magMin[i]) / 2.0f;
+  }
+
+  // Comprobar que se haya realizado una rotacion suficiente
+  if (radio[0] < 100 || radio[1] < 100 || radio[2] < 100) {
+    Serial.println("ERROR: calibracion insuficiente.");
+    Serial.println("Hay que girar el sensor en los tres ejes.");
+    return;
+  }
+
+  float radioPromedio = (radio[0] + radio[1] + radio[2]) / 3.0f;
+
+  for (int i = 0; i < 3; i++) {
+    magScale[i] = radioPromedio / radio[i];
+  }
+
+  Serial.println("\n=== RESULTADOS CALIBRACION ===");
+
+  for (int i = 0; i < 3; i++) {
+    Serial.printf("Eje %d: Offset = %.2f | Scale = %.4f\n",
+                  i, magOffset[i], magScale[i]);
+  }
+
+  Serial.println("Calibracion terminada.");
+}
+
+static void magActualizarCalibracion(float x, float y, float z) {
+  float v[3] = {x, y, z};
+
+  for (int i = 0; i < 3; i++) {
+    if (v[i] < magMin[i]) magMin[i] = v[i];
+    if (v[i] > magMax[i]) magMax[i] = v[i];
+  }
+
+  if (millis() - magInicioCal >= MAG_TIEMPO_CAL) {
+    magFinalizarCalibracion();
+  }
+}
 // ======================================================================
 // 5. FILTROS  (estimación "por software", sin usar nada del DMP)
 // ======================================================================
@@ -209,31 +305,124 @@ static void filtroComplementario(float ax , float ay , float az ,
   fYawMag = normalizarAngulo(yawGiro + (1.0f - ALPHA) * dif);
 
   // Mejoras posibles más adelante:
-  //  - ignorar el acelerómetro cuando |a| se aleja de 1 g (el guante se está moviendo fuerte)
+  //  - ignorar el acelerómetro cuando |a| se aleja de 1 g (el guante se está moviendo fuerte) 
   //  - integrar con la cinemática real de Euler en vez de eje por eje
 }
 
-// ---------- ESPACIO RESERVADO PARA EL FILTRO DE KALMAN ----------
-// Cuando exista: poner kalmanDisponible() en true, completar kalmanActualizar() y
-// elegirEstimacion() ya sabe usarlo. Mientras tanto la página lo muestra deshabilitado.
-static bool kalmanDisponible(){ return false; }
-static void kalmanActualizar(float ax , float ay , float az ,
-                             float gx , float gy , float gz , float dt){
-  // TODO
+// ======================================================================
+// 5. FILTROS - IMPLEMENTACIÓN KALMAN (Roll, Pitch y Yaw)
+// ======================================================================
+
+// Estructura para un Filtro de Kalman de 1 dimensión (Ángulo + Sesgo de Giroscopio)
+struct Kalman1D {
+  float angulo; // Ángulo estimado
+  float bias;   // Sesgo estimado del giroscopio
+  float rate;   // Velocidad angular no sesgada
+
+  float P[2][2]; // Matriz de covarianza del error de estimación
+
+  // Parámetros de ruido ajustables
+  float Q_angle; // Ruido de proceso para el acelerómetro/magnetómetro
+  float Q_gyro;  // Ruido de proceso para la deriva del giroscopio
+  float R_measure; // Ruido de medición del sensor
+
+  void init() {
+    angulo = 0.0f;
+    bias = 0.0f;
+    P[0][0] = 0.0f; P[0][1] = 0.0f;
+    P[1][0] = 0.0f; P[1][1] = 0.0f;
+    
+    Q_angle = 0.001f;
+    Q_gyro = 0.003f;
+    R_measure = 0.03f;
+  }
+
+  // Actualización: newAngle es la medición de referencia (Acc/Mag), newRate es el Giroscopio
+  float getAngle(float newAngle, float newRate, float dt) {
+    // Paso 1: Predicción del estado
+    rate = newRate - bias;
+    angulo += dt * rate;
+
+    // Actualizar covarianza de predicción
+    P[0][0] += dt * (dt * P[1][1] - P[0][1] - P[1][0] + Q_angle);
+    P[0][1] -= dt * P[1][1];
+    P[1][0] -= dt * P[1][1];
+    P[1][1] += Q_gyro * dt;
+
+    // Paso 2: Corrección / Ganancia de Kalman
+    float S = P[0][0] + R_measure; // Innovación de la covarianza
+    float K[2]; // Ganancia de Kalman
+    K[0] = P[0][0] / S;
+    K[1] = P[1][0] / S;
+
+    float y = newAngle - angulo; // Innovación de la medición (diferencia)
+
+    // Actualizar ángulo y bias
+    angulo += K[0] * y;
+    bias   += K[1] * y;
+
+    // Actualizar matriz de covarianza
+    float P00_temp = P[0][0];
+    float P01_temp = P[0][1];
+
+    P[0][0] -= K[0] * P00_temp;
+    P[0][1] -= K[0] * P01_temp;
+    P[1][0] -= K[1] * P00_temp;
+    P[1][1] -= K[1] * P01_temp;
+
+    return angulo;
+  }
+};
+
+// Instancias del filtro de Kalman para cada eje
+Kalman1D kalmanRoll;
+Kalman1D kalmanPitch;
+Kalman1D kalmanYaw;
+
+static float kRoll = 0, kPitch = 0, kYaw = 0;
+
+static bool kalmanDisponible() { 
+  return true; // Se habilita en la web
 }
-static void kalmanEstimacion(float& r , float& p , float& y){
-  // TODO: devolver el roll, pitch y yaw estimados por Kalman
-  r = fRoll; p = fPitch; y = fYawMag;
+
+static void kalmanActualizar(float ax, float ay, float az,
+                             float gx, float gy, float gz, float dt) {
+  // Cálculo de referencias de acelerómetro y magnetómetro
+  float rollAcc = atan2f(ay, az);
+  float pitchAcc = atan2f(-ax, sqrtf(ay * ay + az * az));
+  float yawMagRef = yawDesdeMag(kRoll, kPitch);
+
+  // Ejecución de la corrección por Kalman
+  kRoll  = kalmanRoll.getAngle(rollAcc, gx, dt);
+  kPitch = kalmanPitch.getAngle(pitchAcc, gy, dt);
+  
+  // Normalizar la innovación del Yaw para evitar giros bruscos en ±PI
+  float diffYaw = normalizarAngulo(yawMagRef - kYaw);
+  kYaw = normalizarAngulo(kYaw + kalmanYaw.getAngle(kYaw + diffYaw, gz, dt) - kYaw);
+}
+
+static void kalmanEstimacion(float& r, float& p, float& y) {
+  r = kRoll;
+  p = kPitch;
+  y = kYaw;
 }
 // ----------------------------------------------------------------
 
 // Devuelve la estimación que corresponde al modo elegido en la página.
 static void elegirEstimacion(float& r , float& p , float& y , const char*& nombre){
-  r = fRoll; p = fPitch;
   switch (modo){
-  case MODO_COMP:   y = fYawComp; nombre = "comp";   break;
-  case MODO_MAG:    y = fYawMag;  nombre = "mag";    break;
-  case MODO_KALMAN: kalmanEstimacion(r , p , y); nombre = "kalman"; break;
+  case MODO_COMP:   
+    r = fRoll; p = fPitch; y = fYawComp; 
+    nombre = "comp";   
+    break;
+  case MODO_MAG:    
+    r = fRoll; p = fPitch; y = fYawMag;  
+    nombre = "mag";    
+    break;
+  case MODO_KALMAN: 
+    kalmanEstimacion(r , p , y); 
+    nombre = "kalman"; 
+    break;
   }
 }
 
@@ -310,6 +499,7 @@ static void enviarError(const char* msg){
 static void manejarComando(const char* txt){
   if (strstr(txt , "\"iniciar\""))   transmitiendo = true;
   else if (strstr(txt , "\"detener\""))   transmitiendo = false;
+  else if (strstr(txt , "\"calibrarMag\"")) { magComenzarCalibracion();}
   else if (strstr(txt , "\"calibrar\""))  pedirCalibracion = true;   // se hace en loop()
   else if (strstr(txt , "\"filtro\"")){
     if (strstr(txt , "\"comp\""))    modo = MODO_COMP;
@@ -343,7 +533,14 @@ static void wifiIniciar(){
   WiFi.mode(usarRed ? WIFI_AP_STA : WIFI_AP);  // AP (red propia) + estación (tu router), o solo AP
   WiFi.softAP(AP_SSID , AP_PASS);              // siempre queda esta red como respaldo
 
-  if (usarRed){
+  if (usarRed){ //Agregar la propia manualmente 
+    PAddress local_IP(192, 168, 0, 11); // IP fija
+    IPAddress gateway(192, 168, 0, 1);
+    IPAddress subnet(255, 255, 255, 0);
+
+if (!WiFi.config(local_IP, gateway, subnet)) {
+  Serial.println("Error al configurar IP estática");
+}
     WiFi.begin(RED_SSID , RED_CLAVE);
     Serial.print("Conectando a "); Serial.print(RED_SSID);
     uint32_t t0 = millis();
@@ -405,6 +602,9 @@ void setup(){
   Serial.println(dmpListo ? "DMP listo." : "DMP NO se pudo iniciar.");
 
   wifiIniciar();
+  kalmanRoll.init();
+kalmanPitch.init();
+kalmanYaw.init();
 }
 
 // ======================================================================

@@ -110,7 +110,7 @@ $('filtro').onchange = e => { con.filtro(e.target.value); $('filtroNombre').text
 $('eje').onchange = e => gr.setEje(e.target.value);
 $('btnRef').onclick = () => { if (S.crudo) S.ref = { dmp: S.crudo.dmp, sw: S.crudo.sw }; };
 $('btnRefOff').onclick = () => { S.ref = null; };
-$('btnCal').onclick = () => con.enviar({ cmd: 'calibrar' });
+$('btnCal').onclick = () => con.enviar({ cmd: 'calibrarMag' });
 $('btnLimpiar').onclick = () => gr.limpiar();
 $('btnCam').onclick = vistaInicial;
 $('btnPausa').onclick = e => { const p = e.target.getAttribute('aria-pressed') !== 'true'; e.target.setAttribute('aria-pressed', p); e.target.textContent = p ? 'Reanudar gráficos' : 'Pausar gráficos'; gr.pausar(p); };

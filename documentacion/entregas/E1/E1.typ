@@ -11,7 +11,6 @@ Se realizará una invesigacion con la que se busca comparar la orientación obte
 
 En el artículo se señala que el eje de yaw no posee una referencia absoluta cuando la orientación se obtiene únicamente a partir del giroscopio y acelerometro, por lo que puede presentar un error acumulativo. Como posible solución, se sugiere incorporar un magnetómetro, ya que permite obtener una referencia adicional para la orientación. A partir de esta consideración, se decidió reemplazar el MPU6050 por el MPU9250, el cual incluye este sensor, además de los otros.
 
-
 = Objetivo
 
 == Objetivo concreto
@@ -42,7 +41,6 @@ El MPU9250 estará conectado al ESP32 mediante el bus de comunicación I²C. El 
 
 En la @fig-esquema-general se presenta la arquitectura general del sistema y el recorrido de la información entre sus principales componentes. Los resultados obtenidos mediante ambas estrategias serán transmitidos por Wi-Fi hacia una computadora, donde se ejecutará la aplicación de visualización. Esta aplicación recibirá los datos, reconstruirá la orientación de la mano y permitirá visualizar y comparar simultáneamente los resultados obtenidos mediante el DMP y el procesamiento por software.
 
-
 #figure(
   image("../../imagenes/diagrama_bloque.png", width: 100%),
   caption: [
@@ -51,10 +49,7 @@ En la @fig-esquema-general se presenta la arquitectura general del sistema y el 
   kind: image,
 ) <fig-esquema-general>
 
-
 = Identificación de partes
-
-
 
 == Partes de hardware
 
@@ -100,7 +95,6 @@ El hardware necesario para el desarrollo estará compuesto principalmente por lo
   caption: [Listado preliminar de materiales necesarios para el desarrollo del prototipo.],
   kind: table,
 ) <tab-materiales>
-
 
 == Requerimientos de alimentación
 El ESP32-WROOM-32 requiere una alimentación de 3,3 V, que se suministrará a través del puerto USB de la computadora. La corriente necesaria depende de la actividad del microcontrolador y del uso de las comunicaciones inalámbricas. Como el proyecto requiere una velocidad de procesamiento de 50 MHz, el consumo de la CPU será menor a 25 mA. El módulo WiFi, operando a 1 Mbps (máxima velocidad que puede proporcionar), consume 240 mA. El módulo Bluetooth no se utilizará en este proyecto, por lo cual el consumo de corriente total se mantendrá por debajo de 265 mA, dejando un margen para los picos de consumo.
@@ -162,8 +156,6 @@ En la @fig-mockup-interfaz se presenta un mockup preliminar de la interfaz propu
 ) <fig-mockup-interfaz>
 
 La interfaz estará orientada principalmente a facilitar la evaluación experimental de las estrategias implementadas, permitiendo observar sus diferencias y analizar su comportamiento bajo distintas condiciones.
-
-
 
 = Avances cronológicos de tareas
 
@@ -265,10 +257,9 @@ En la @fig-gantt se ilustra la distribución temporal de las tareas y los hitos 
   caption: [Diagrama de Gantt por etapas con entregas formales.],
   kind: table,
 ) <fig-gantt>
-= Documentación en video
 
+= Documentación en video
 
 Se adjunta el enlace a la presentación.
 
 #link("https://drive.google.com/file/d/1oN-svLcWDugoQn_Wu5j7ci9gLfHkvPRg/view?usp=drive_link")[Video presentación Plan de proyecto]
-

@@ -1,19 +1,22 @@
-#ifndef FILTRO_COMPLEMENTARIO_H
-#define FILTRO_COMPLEMENTARIO_H
+#pragma once
 
-#include "../sensores/mpu6050.h"
-#include "../sensores/qmc5883l.h"
+#include "../tipos.h"
 
-struct Orientacion {
-    float roll;
-    float pitch;
-    float yaw;
+// Mantiene las estimaciones complementarias con y sin corrección magnética.
+class FiltroComplementario {
+public:
+  // Parte de la inclinación medida y del rumbo magnético inicial.
+  void iniciar(const Vector3 &aceleracion, const Vector3 &campo);
+
+  // Fusiona aceleración y giro; mantiene ambos yaw en paralelo.
+  void actualizar(const DatosInerciales &datos, const Vector3 &campo, float dt);
+
+  // Elige el yaw integrado o el corregido con magnetómetro.
+  Orientacion obtener(bool usarMagnetometro) const;
+
+private:
+  float roll = 0;
+  float pitch = 0;
+  float yawGiroscopio = 0;
+  float yawMagnetometro = 0;
 };
-
-// Establece la orientacion inicial usando acelerometro y magnetometro.
-void filtro_iniciar(const mpu_datos_t &datos, const mag_datos_t &mag, bool mag_valido = true);
-
-// Actualiza roll, pitch y yaw (9-DoF) en radianes. dt en segundos.
-Orientacion filtro_actualizar(const mpu_datos_t &datos, const mag_datos_t &mag, float dt, bool mag_nuevo = true);
-
-#endif

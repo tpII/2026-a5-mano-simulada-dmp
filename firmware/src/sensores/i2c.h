@@ -1,27 +1,15 @@
+#pragma once
 
-#ifndef I2C_H
-#define I2C_H
-
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+namespace BusI2c {
+// Inicializa el bus compartido por los sensores con los pines de configuración.
+void iniciar();
 
-    // Inicializar bus I2C
-    void i2c_init(void);
+// Escribe un registro; devuelve false si el dispositivo no responde.
+bool escribirRegistro(uint8_t direccion, uint8_t registro, uint8_t valor);
 
-    // Escribir un registro
-    int i2c_escribir_registro(uint8_t direccion , uint8_t registro , uint8_t valor);
-
-    // Leer uno o varios registros consecutivos
-    int i2c_leer_registros(uint8_t direccion , uint8_t registro , uint8_t* buffer , size_t longitud);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif
-
-
+// Lee registros consecutivos; solo devuelve true si recibe todos los bytes.
+bool leerRegistros(uint8_t direccion, uint8_t registro, uint8_t *datos, size_t cantidad);
+} // namespace BusI2c

@@ -7,13 +7,14 @@ DMP y por filtros ejecutados en un ESP32. Hardware: **MPU6050 + QMC5883L**. Frec
 
 | Carpeta | Contenido |
 | --- | --- |
-| `firmware/` | Base modular del dispositivo; entrada `firmware.ino` |
+| `firmware/` | Firmware modular; entrada `firmware.ino` y guía en `firmware/README.md` |
 | `firmware/src/sensores/` | I²C, MPU6050 y QMC5883L |
-| `firmware/src/filtros/` | Filtro complementario |
-| `firmware/src/dmp/` | Integración futura del DMP |
-| `firmware/src/calibracion/` | Calibración por implementar |
-| `firmware/src/comunicacion/` | Telemetría JSON v1 por USB; Wi-Fi pendiente |
-| `web/` | Demo de dos manos, gráficos y exportación; integración v1 pendiente |
+| `firmware/src/filtros/` | Complementario, complementario con magnetómetro y Kalman |
+| `firmware/src/dmp/` | Interrupción y adquisición de paquetes DMP |
+| `firmware/src/calibracion/` | Calibración del MPU6050 y del magnetómetro |
+| `firmware/src/comunicacion/` | Red propia, WebSocket y protocolo JSON de la web |
+| `firmware/src/matematica/` | Cuaterniones, ángulos y rumbo magnético |
+| `web/` | Visualización de dos manos, gráficos, calibración y exportación CSV |
 | `experimentos/` | Prototipos conservados para reproducir las pruebas anteriores |
 | `documentacion/` | Entregas, imágenes, investigación y decisiones |
 

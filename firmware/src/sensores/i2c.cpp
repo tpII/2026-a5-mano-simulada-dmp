@@ -1,52 +1,32 @@
-
 #include "i2c.h"
-#include <Arduino.h>
+
+#include "../configuracion.h"
 #include <Wire.h>
 
-#define I2C_SDA 21
-#define I2C_SCL 22
-#define I2C_FREQ 100000
-
-void i2c_init(void){
-    Wire.begin(I2C_SDA , I2C_SCL);
-    Wire.setClock(I2C_FREQ);
-    Wire.setTimeOut(10); // Evitar bloqueos prolongados ante fallos de bus.
+namespace BusI2c {
+void iniciar() {
+  Wire.begin(Configuracion::PIN_SDA, Configuracion::PIN_SCL);
+  Wire.setClock(Configuracion::FRECUENCIA_I2C);
 }
 
-int i2c_escribir_registro(uint8_t direccion , uint8_t registro , uint8_t valor){
-
-    Wire.beginTransmission(direccion);
-    Wire.write(registro);
-    Wire.write(valor);
-
-    return Wire.endTransmission() == 0 ? 0 : -1;
+bool escribirRegistro(uint8_t direccion, uint8_t registro, uint8_t valor) {
+  Wire.beginTransmission(direccion);
+  Wire.write(registro);
+  Wire.write(valor);
+  return Wire.endTransmission() == 0;
 }
 
-int i2c_leer_registros(uint8_t direccion , uint8_t registro , uint8_t* buffer , size_t longitud){
-
-    if (buffer == nullptr || longitud == 0 ||
-        longitud > 32){
-        return -1;
-    }
-
-    Wire.beginTransmission(direccion);
-    Wire.write(registro);
-
-    if (Wire.endTransmission(false) != 0){
-        return -1;
-    }
-
-    size_t recibidos = Wire.requestFrom(
-        direccion , longitud , true
-    );
-
-    if (recibidos != longitud){
-        return -1;
-    }
-
-    for (size_t i = 0; i < longitud; i++){
-        buffer[i] = Wire.read();
-    }
-
-    return 0;
+bool leerRegistros(uint8_t direccion, uint8_t registro, uint8_t *datos, size_t cantidad) {
+  if (!datos || cantidad == 0 || cantidad > 32)
+    return false;
+  Wire.beginTransmission(direccion);
+  Wire.write(registro);
+  if (Wire.endTransmission(false) != 0)
+    return false;
+  if (Wire.requestFrom((uint16_t)direccion, cantidad, true) != cantidad)
+    return false;
+  for (size_t i = 0; i < cantidad; ++i)
+    datos[i] = Wire.read();
+  return true;
 }
+} // namespace BusI2c

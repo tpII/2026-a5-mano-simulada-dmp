@@ -1,18 +1,20 @@
-#ifndef MAG_H
-#define MAG_H
+#pragma once
 
-#include <stdint.h>
+#include "../tipos.h"
 
-typedef struct {
-    float mx;
-    float my;
-    float mz;
-    int16_t crudo[3];
-} mag_datos_t;
+namespace Qmc5883l {
+// Configura el QMC5883L: continuo, 100 Hz, +/-8 G y sobremuestreo 512.
+bool iniciar();
 
-int mag_init(void);
-enum { MAG_OK = 0, MAG_SIN_MUESTRA = 1, MAG_ERROR_I2C = -1, MAG_SATURADO = -2 };
-// estado devuelve DRDY/OVL/DOR. No modifica d si no hay muestra valida.
-int mag_leer(mag_datos_t* d, uint8_t* estado = nullptr);
+// Lee las cuentas originales, sin offsets ni escalas, para calibrar.
+bool leerCrudo(Vector3 &campo);
 
-#endif
+// Lee y corrige el campo; conserva el argumento anterior si falla la lectura.
+bool leer(Vector3 &campo);
+
+// Devuelve los offsets y escalas vigentes, almacenados solo en RAM.
+const AjustesMagnetometro &calibracion();
+
+// Sustituye los ajustes después de validar una calibración completa.
+void aplicarCalibracion(const AjustesMagnetometro &ajustes);
+} // namespace Qmc5883l

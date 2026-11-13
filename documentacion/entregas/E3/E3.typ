@@ -28,8 +28,11 @@ En la @tab-materiales se presenta la lista de materiales y presupuesto del proye
     [1], [Capacitor de desacople de 0,1 µF], [Sí], [—],
     [1], [Cable MicroUSB para alimentación y programación], [Sí], [—],
     [1], [Batería para alimentación portátil], [Sí], [—],
+    [1], [Placa perforada para el montaje de componentes], [Sí],[\$4000],
+    [2], [Tiras de pines hembra], [Sí],[\$2000],
+    [1], [Tira de pines macho], [Sí],[\$1000],
     table.cell( colspan: 3, fill: luma(235), align: right, [*Total*]),
-    table.cell( fill: luma(235), align: right, [*\$33.966*]),
+    table.cell( fill: luma(235), align: right, [*\$40.966*]),
   ),
   caption: [Materiales necesarios para el desarrollo del prototipo y su disponibilidad.],
   kind: table,
@@ -41,7 +44,7 @@ Los demás materiales ya estaban disponibles, por lo que solo resta adquirir el 
 
 En la propuesta inicial se contemplaba el uso de tres capacitores de desacople. Sin embargo, durante el montaje se comprobó que dos de ellos correspondían a pines que no se utilizan en este proyecto, por lo que la cantidad se redujo a uno. Esta decisión deberá verificarse al armar el prototipo final, ya que es posible que no se requiera ninguno.
 
-El resto de los materiales se mantiene según lo establecido en el plan de proyecto. Con el cambio de sensores, el costo total se redujo de \$48.660 a \$33.966.
+El resto de los materiales se mantiene según lo establecido en el plan de proyecto. Con el cambio de sensores, el costo total se redujo de \$48.660 a \$40.966, incluso después de la adquisisión de componentes para el montaje del sistema.
 
 = Esquema gráfico del proyecto
 
@@ -198,14 +201,29 @@ En las siguientes secciones se evalúa el grado de avance de cada uno de estos i
 
 == Montaje de hardware
 
-Se mantuvo la conexión utilizada en el informe de avance de octubre, la cual se muestra en la @fig-arquitectura.
+Se mantuvo la conexión utilizada en el informe de avance de octubre, la cual se muestra en la @fig-arquitectura, agregando la conexión a los pines VIN y GND del otro lado del ESP32 para conectar la batería.
 #figure(
   image("../../imagenes/esquema_mpu_magnetometro.png", width: 70%),
   caption: [Esquema de arquitectura general del sistema.],
   kind: image,
 ) <fig-arquitectura>
 
-No se realizó el montaje sobre el guante, por lo que queda pendiente para la próxima etapa.
+El montaje sobre el guante no se realizó y queda pendiente para la próxima etapa. Sí se comenzó el armado de los componentes sobre una placa perforada, utilizando tiras de pines hembra para poder retirar los sensores y el ESP32 con facilidad. Todavía no se realizaron las soldaduras de las conexiones.
+
+#figure(
+  grid(
+    columns: (1fr, 1fr),
+    gutter: 2em,
+    [
+        #image("../../imagenes/montaje.jpg", width: 100%)
+    ],
+    [
+      #image("../../imagenes/montaje_mano.jpg", width: 100%)
+    ]
+  ),
+  caption: [Avance del montaje de hardware.],
+  kind: image,
+)<fig-prototipo-completo>
 
 == Transmisión Wi-Fi del ESP32 a la PC
 
@@ -393,7 +411,7 @@ static void calibrarSensor() {
 
 Las funciones `CalibrateAccel` y `CalibrateGyro` de la librería promedian lecturas del sensor, ajustan el offset del registro correspondiente y repiten el proceso hasta que la medición converge al valor esperado en reposo. Mientras se está calibrando el guante debe permanecer quieto y apoyado de modo que el eje Z quede alineado con la gravedad. El parámetro (6) indica la cantidad de ciclos de refinamiento.
 
-La calibración de offsets quedó integrada al arranque y disponible desde la interfaz.
+La calibración de offsets quedó integrada al arranque y queda para la siguiente etapa incorporar un botón en la interfaz web
 
 == Implementación y ajuste del filtro de Kalman
 
@@ -454,7 +472,7 @@ struct Kalman1D {
   ]
 ) <cod-kalman1d>
 
-Se crearon tres instancias, una por eje. Para roll y pitch la medición es el ángulo de inclinación calculado con el acelerómetro, igual que en el filtro complementario. Para el yaw la medición es el rumbo del magnetómetro, compensado por inclinación con el roll y el pitch ya estimados (@cod-kalman-actualizar).
+Se creó una instancia por eje. Para roll y pitch la medición es el ángulo de inclinación calculado con el acelerómetro, igual que en el filtro complementario. Para el yaw la medición es el rumbo del magnetómetro, compensado por inclinación con el roll y el pitch ya estimados (@cod-kalman-actualizar).
 
 El yaw requiere un tratamiento especial por ser un ángulo circular: la diferencia entre la medición y la estimación podría salir como cercana a $2 pi$ al cruzar $plus.minus 180°$, lo que produciría un salto brusco. Para evitarlo, la medición se expresa como la estimación actual más la diferencia normalizada al rango $[-pi, pi]$, y el resultado se vuelve a normalizar.
 
@@ -505,7 +523,7 @@ void init() {
   ]
 ) <cod-kalman-params>
 
-El filtro de Kalman quedó integrado al firmware, y queda para la siguiente etapa incorporar un botón en la interfaz web. Actualmente, los filtros arrancan con el ángulo en cero en lugar de la posición real del sensor, y no se reinician al recalibrar, por lo que tardan un tiempo en converger.
+El filtro de Kalman quedó integrado al firmware, y queda para la siguiente etapa ajustarlo para mejorar la aproximación. Actualmente, los filtros arrancan con el ángulo en cero en lugar de la posición real del sensor, y no se reinician al recalibrar, por lo que tardan un tiempo en converger.
 
 == Optimización del filtro complementario
 
@@ -551,7 +569,13 @@ El peso del giroscopio se fijó en `ALPHA = 0.98`. Un valor mayor reduce el ruid
 
 == Interfaz web
 
-La interfaz es una página estática (HTML, CSS y JavaScript) que se abre en el navegador de la PC y se conecta por WebSocket al ESP32. Para el modelo 3D se usó Three.js y para los gráficos Chart.js. Incluye además un modo demo que simula el flujo de datos a 50 Hz, lo que permitió desarrollar y probar la interfaz sin el hardware. En el panel de enlace de datos se muestra la frecuencia real de recepción y los paquetes perdidos, calculados con el contador `n` de cada mensaje.
+La interfaz (@fig-interfaz) es una página estática (HTML, CSS y JavaScript) que se abre en el navegador de la PC y se conecta por WebSocket al ESP32. Para el modelo 3D se usó Three.js y para los gráficos Chart.js. Incluye además un modo demo que simula el flujo de datos a 50 Hz, lo que permitió desarrollar y probar la interfaz sin el hardware. En el panel de enlace de datos se muestra la frecuencia real de recepción y los paquetes perdidos, calculados con el contador `n` de cada mensaje.
+
+#figure(
+  image("../../imagenes/interfaz_v2.jpg", width: 100%),
+  caption: "Avances en la interfaz web.",
+  kind: image
+) <fig-interfaz>
 
 === Visualización 3D
 
@@ -565,10 +589,8 @@ Como ambas estimaciones llegan como cuaterniones, se aplican directamente al mod
   [
 ```js
 const sensorAThree = q => new THREE.Quaternion(q[1], q[2], q[3], q[0]);
-
 objetivo.dmp.copy(sensorAThree(q.dmp));
 objetivo.sw.copy(sensorAThree(q.sw));
-
 manos[k].quaternion.slerp(objetivo[k], 0.4);
 ```
   ]
@@ -683,7 +705,7 @@ En la @tab-avance se muestra el resumen de los avances de esta etapa.
     [Montaje sobre el guante], [Pendiente],
     [Transmisión Wi-Fi], [Completado],
     [Calibración de offsets del DMP], [Completado, pendiente incorporarlo a la interfaz],
-    [Implementación y ajuste del filtro Kalman], [Completado],
+    [Implementación y ajuste del filtro Kalman], [En proceso],
     [Optimización del filtro complementario], [Completado],
     [Visualización 3D], [Completado],
     [Panel selector], [Completado],
@@ -697,8 +719,6 @@ En la @tab-avance se muestra el resumen de los avances de esta etapa.
 /*La próxima etapa incluirá, además de las tareas planificadas inicialmente para ese período, bla bla bla bla, que no se llegó a completar para este informe de avance.*/
 
 = Documentación relacionada
-== Registro del prototipo
 
-== Links de la entrega
+El código fuente está disponible en el #link("https://github.com/tpII/2026-a5-mano-simulada-dmp")[repositorio del proyecto], la bitácora de trabajo en la #link("https://github.com/tpII/2026-a5-mano-simulada-dmp/wiki/BITACORA")[wiki del repositorio] y el video de demostración en #link("https://drive.google.com/file/d/1kfPa1c4QhgdYRmhAnUgkTCLqPKZSwnrr/view?usp=drive_link")[Google Drive].
 
-El código fuente está disponible en el #link("https://github.com/tpII/2026-a5-mano-simulada-dmp")[repositorio del proyecto], la bitácora de trabajo en la #link("https://github.com/tpII/2026-a5-mano-simulada-dmp/wiki/BITACORA")[wiki del repositorio] y el video de demostración en #link("https://drive.google.com/file/d/1Ytu-ZvgfhrjKuKCjhcG4eb800j2wZBuh/view?usp=sharing")[Google Drive].  CAMBIAR LINK DE VIDEO.
